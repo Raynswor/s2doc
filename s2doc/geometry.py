@@ -1,7 +1,6 @@
-import abc
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
-from shapely import LineString, Polygon, box
+from shapely import LineString, Polygon
 
 from .errors import IncompatibleError, LoadFromDictError
 
@@ -17,7 +16,7 @@ def check_space(func):
     return wrapper
 
 
-class Region(abc.ABC):
+class Region(ABC):
     def __init__(self, shape: Polygon | LineString, space: str = "img") -> None:
         self._shape = shape
         self._space = space
@@ -128,9 +127,13 @@ class SpanRegion(Region):
             raise IncompatibleError("space", self.space, space)
 
     def __eq__(self, value: object) -> bool:
-        if not isinstance(value, Region):
+        if not isinstance(value, SpanRegion):
             return NotImplemented
-        return self.space == value.space and self.start == value.start and self.end == value.end
+        return (
+            self.space == value.space
+            and self.start == value.start
+            and self.end == value.end
+        )
 
 
 class RectangleRegion(Region):
@@ -141,7 +144,7 @@ class RectangleRegion(Region):
     def __init__(
         self, x1: float, y1: float, x2: float, y2: float, space: str = "img"
     ) -> None:
-        super().__init__(box(x1, y1, x2, y2), space)
+        super().__init__(Polygon([(x1, y1), (x1, y2), (x2, y2), (x2, y1)]), space)
 
     @property
     def x1(self) -> float:
@@ -201,8 +204,12 @@ class RectangleRegion(Region):
         )
 
     def __eq__(self, value: object) -> bool:
-        if not isinstance(value, Region):
+        if not isinstance(value, RectangleRegion) and not isinstance(value, PolygonRegion) and not isinstance(value, LineRegion):
             return NotImplemented
+        elif isinstance(value, PolygonRegion):
+            return self._shape.equals(value._shape)
+        elif isinstance(value, LineRegion):
+            return self._shape.equals(value._shape)
         return (
             self.space == value.space
             and self.x1 == value.x1
@@ -242,8 +249,12 @@ class PolygonRegion(Region):
         )
 
     def __eq__(self, value: object) -> bool:
-        if not isinstance(value, Region):
+        if not isinstance(value, PolygonRegion) and not isinstance(value, RectangleRegion) and not isinstance(value, LineRegion):
             return NotImplemented
+        elif isinstance(value, RectangleRegion):
+            return self._shape.equals(value._shape)
+        elif isinstance(value, LineRegion):
+            return self._shape.equals(value._shape)
         return (
             self.space == value.space
             and self.points == value.points
@@ -289,8 +300,12 @@ class LineRegion(Region):
         )
 
     def __eq__(self, value: object) -> bool:
-        if not isinstance(value, Region):
+        if not isinstance(value, LineRegion) and not isinstance(value, RectangleRegion) and not isinstance(value, PolygonRegion):
             return NotImplemented
+        elif isinstance(value, RectangleRegion):
+            return self._shape.equals(value._shape)
+        elif isinstance(value, PolygonRegion):
+            return self._shape.equals(value._shape)
         return (
             self.space == value.space
             and self.x1 == value.x1
@@ -330,8 +345,14 @@ class PolylineRegion(Region):
         )
 
     def __eq__(self, value: object) -> bool:
-        if not isinstance(value, Region):
+        if not isinstance(value, PolylineRegion) and not isinstance(value, PolygonRegion) and not isinstance(value, RectangleRegion) and not isinstance(value, LineRegion):
             return NotImplemented
+        elif isinstance(value, RectangleRegion):
+            return self._shape.equals(value._shape)
+        elif isinstance(value, PolygonRegion):
+            return self._shape.equals(value._shape)
+        elif isinstance(value, LineRegion):
+            return self._shape.equals(value._shape)
         return (
             self.space == value.space
             and self.points == value.points

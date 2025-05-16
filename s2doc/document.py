@@ -25,7 +25,7 @@ from .normalizedObject import NormalizedObj
 from .page import Page
 from .references import ReferenceGraph
 from .revision import Revision
-from .semantics import SemanticEntity, SemanticNetwork, SemanticType
+from .semantics import Literal, SemanticEntity, SemanticKnowledgeGraph, SemanticType
 from .space import Space
 from .util import base64_to_img, img_to_base64
 
@@ -41,7 +41,7 @@ class Document(DocObj):
         references: ReferenceGraph | None = None,
         revisions: list[Revision] | None = None,
         fonts: list[Font] | None = None,
-        semantic_network: SemanticNetwork | None = None,
+        semantic_network: SemanticKnowledgeGraph | None = None,
         semantic_references: ReferenceGraph | None = None,
         metadata: dict[str, Any] | None = None,
         raw_pdf: bytes | None = None,
@@ -68,8 +68,8 @@ class Document(DocObj):
             ]
         )
         # manages available Types (classes), Entities (instances) and Relations
-        self.semantic_network: SemanticNetwork = (
-            semantic_network if semantic_network else SemanticNetwork()
+        self.semantic_network: SemanticKnowledgeGraph = (
+            semantic_network if semantic_network else SemanticKnowledgeGraph()
         )
         # manages the connections between spatial elements (elements) and semantic entities
         # always is_of_class OR is_individual relations
@@ -149,17 +149,21 @@ class Document(DocObj):
             raise DocumentError("region must be an instance of Region.")
 
         if isinstance(page, str):
-            page: Page = self.pages.get(page)
-            if not page:
+            page_obj: Page = self.pages.get(key=page)
+            if not page_obj:
                 raise PageNotFoundError(f"Page '{page}' does not exist.")
+        elif isinstance(page, Page):
+            page_obj: Page = page
 
         if convert_to_xml:
             region = region.convert_space(
-                page.factor_between_spaces("img", "xml"), "xml"
+                page_obj.factor_between_spaces("img", "xml"), "xml"
             )
-        space: Space = page.spaces.get(region.space)
+        space: Space = page_obj.spaces.get(region.space)
         if not space:
-            raise DocumentError(f"Space '{region.space}' does not exist in page '{page}'.")
+            raise DocumentError(
+                f"Space '{region.space}' does not exist in page '{page_obj.oid}'."
+            )
         # see if region is within the space dimensions TODO: currently only 2D space and RectangleRegion
         if not (
             0 <= region.x1 < space.dimensions[0]
@@ -168,11 +172,11 @@ class Document(DocObj):
             and 0 <= region.y2 < space.dimensions[1]
         ):
             raise DocumentError(
-                f"Region '{region}' is out of bounds for space '{region.space}' in page '{page}'."
+                f"Region '{region}' is out of bounds for space '{region.space}' in page '{page_obj.oid}'."
             )
 
         while not element_id or element_id in self.elements:
-            element_id = self.id_generation_variant(page, category)
+            element_id = self.id_generation_variant(page_obj.oid, category)
 
         ar = Element.create(
             element_id,
@@ -192,7 +196,7 @@ class Document(DocObj):
                 for r in referenced_by:
                     self.references.add_reference(r, element_id)
         else:
-            self.references.add_reference(page, element_id)
+            self.references.add_reference(page_obj.oid, element_id)
 
         if references:
             if isinstance(references, str):
@@ -482,7 +486,7 @@ class Document(DocObj):
                 f"page-{len(self.pages.allIds)}",
                 len(self.pages.allIds),
                 None,
-                spaces={"none": Space("none", [-1, -1], [True, False])},
+                spaces={"none": Space("none", [0, 0], [True, False])},
             )
 
         self.pages.add(page)
@@ -595,8 +599,8 @@ class Document(DocObj):
         if (
             not isinstance(d, dict)
             or not d.get("oid")
-            or not d.get("pages")
-            or not d.get("elements")
+            or "pages" not in d
+            or "elements" not in d
         ):
             raise LoadFromDictError(cls.__name__, f"Invalid input: {d}")
 
@@ -616,7 +620,9 @@ class Document(DocObj):
                 else [],
                 metadata=d.get("metadata", {}),
                 raw_pdf=d.get("raw_pdf"),
-                semantic_network=SemanticNetwork.from_dict(d["semantic_network"]),
+                semantic_network=SemanticKnowledgeGraph.from_dict(
+                    d["semantic_network"]
+                ),
                 semantic_references=(
                     ReferenceGraph.from_dict(d["semantic_references"])
                     if d.get("semantic_references")
@@ -694,20 +700,54 @@ class Document(DocObj):
     Semantics
     """
 
-    def annotate_element_with_uri(self, element_id: str, uri: str):
+    def _assert_element_exists(self, element_id: str) -> None:
         if element_id not in self.elements:
-            raise ValueError(f"Element '{element_id}' not found")
-        self.semantic_references.add_reference(element_id, uri)
+            raise KeyError(f"Element '{element_id}' not found")
 
-    def annotate_element_with_entity(self, element_id: str, entity: SemanticEntity):
-        if element_id not in self.elements:
-            raise ValueError(f"Element '{element_id}' not found")
-        self.semantic_references.add_reference(element_id, entity.uri)
+    def _assert_entity_exists(self, uri: str) -> None:
+        if uri not in self.semantic_network.entities:
+            raise KeyError(f"Entity '{uri}' not loaded in semantic network")
 
-    def annotate_element_with_type(self, element_id: str, type: SemanticType):
-        if element_id not in self.elements:
-            raise ValueError(f"Element '{element_id}' not found")
-        self.semantic_references.add_reference(element_id, type.uri)
+    def _assert_type_exists(self, uri: str) -> None:
+        if uri not in self.semantic_network.available_types:
+            raise KeyError(f"Type '{uri}' not available in semantic network")
+
+    def _annotate(self, element_id: str, reference: str) -> None:
+        """Core reference‐addition after validation."""
+        self._assert_element_exists(element_id)
+        self.semantic_references.add_reference(element_id, reference)
+
+    def annotate_element_with_uri(self, element_id: str, uri: str) -> None:
+        self._annotate(element_id, uri)
+
+    def annotate_element_with_entity(
+        self, element_id: str, entity: SemanticEntity
+    ) -> None:
+        self._assert_entity_exists(entity.uri)
+        self._annotate(element_id, entity.uri)
+
+    def annotate_element_with_type(self, element_id: str, typ: SemanticType) -> None:
+        self._assert_type_exists(typ.uri)
+        self._annotate(element_id, typ.uri)
+
+    def annotate_element_with_literal(
+        self, element_id: str, literal: Literal | str
+    ) -> None:
+        """
+        Annotate an element with a literal. The ReferenceGraph stores only strings,
+        so convert Literal instances into their lexical form "value^^datatype".
+        """
+        self._assert_element_exists(element_id)
+
+        # If caller passed a raw string, wrap into a default‐typed Literal
+        if isinstance(literal, str):
+            literal = Literal(literal)
+
+        if not isinstance(literal, Literal):
+            raise TypeError(f"Expected Literal or str, got {type(literal).__name__}")
+
+        lexical = str(literal)  # e.g. '"foo"^^xsd:string' or '42^^xsd:integer'
+        self.semantic_references.add_reference(element_id, lexical)
 
     # def get_elements_by_entity(self, entity: SemanticEntity) -> list[Element]:
     #     return [self.elements[aid] for aid, ents in self.semantic_references.items() if entity in ents]

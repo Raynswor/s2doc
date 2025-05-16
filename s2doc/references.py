@@ -6,8 +6,9 @@ from .errors import LoadFromDictError
 class ReferenceGraph:
     def __init__(self):
         self.adj: dict[str, set[str]] = defaultdict(set)
+        self.rev_adj: dict[str, set[str]] = defaultdict(set)
         self._roots: set[str] = set()
-        self.non_roots: set[str] = set()
+        self._non_roots: set[str] = set()
 
     @property
     def roots(self) -> set[str]:
@@ -31,11 +32,53 @@ class ReferenceGraph:
         """
         if not isinstance(parent, str) or not isinstance(child, str):
             raise TypeError("Both parent and child must be strings.")
+
+        if parent == child:
+            return
+
         self.adj[parent].add(child)
-        self.non_roots.add(child)
-        if parent not in self.non_roots:
+        self.rev_adj[child].add(parent)
+
+        self._non_roots.add(child)
+        if parent not in self._non_roots:
             self._roots.add(parent)
         self._roots.discard(child)
+
+        self._clean_transitive_edges(parent, child)
+
+    def _clean_transitive_edges(self, parent: str, child: str) -> None:
+        """
+        Clean up redundant paths in the graph after adding a new edge.
+
+        Removes any edge A->C if there already exists a path A->B->C.
+
+        Args:
+            parent (str): The parent node in the newly added reference.
+            child (str): The child node in the newly added reference.
+        """
+        # Check each parent of the parent
+        for grandparent in list(self.rev_adj.get(parent, set())):
+            # If the grandparent already has a direct edge to child, it's redundant
+            if child in self.adj.get(grandparent, set()):
+                # Remove the redundant edge
+                self.adj[grandparent].remove(child)
+                self.rev_adj[child].remove(grandparent)
+
+                # Clean up empty entries if needed
+                if not self.adj[grandparent]:
+                    del self.adj[grandparent]
+
+        # Check each child of the child
+        for grandchild in list(self.adj.get(child, set())):
+            # If the parent already has a direct edge to grandchild, it's redundant
+            if grandchild in self.adj.get(parent, set()) and grandchild != child:
+                # Remove the redundant edge
+                self.adj[parent].remove(grandchild)
+                self.rev_adj[grandchild].remove(parent)
+
+                # Clean up empty entries if needed
+                if not self.adj[parent]:
+                    del self.adj[parent]
 
     def contains(self, target: str) -> bool:
         """
@@ -85,7 +128,7 @@ class ReferenceGraph:
         Returns:
             set[str]: A set of all nodes with non-zero in-degree.
         """
-        return {child for children in self.adj.values() for child in children}
+        return set(self.rev_adj.keys())
 
     def get_parents(self, child: str) -> set[str]:
         """
@@ -97,7 +140,7 @@ class ReferenceGraph:
         Returns:
             set[str]: A set of parent nodes that have a directed edge to the given child node.
         """
-        return {parent for parent, children in self.adj.items() if child in children}
+        return self.rev_adj.get(child, set())
 
     def remove_reference(self, parent: str, child: str) -> None:
         """
@@ -109,9 +152,11 @@ class ReferenceGraph:
         """
         if parent in self.adj and child in self.adj[parent]:
             self.adj[parent].remove(child)
+            self.rev_adj[child].remove(parent)
             if not self.adj[parent]:
                 del self.adj[parent]
-            if not any(child in children for children in self.adj.values()):
+            if not self.rev_adj[child]:
+                del self.rev_adj[child]
                 self._roots.add(child)
 
     def remove_node(self, node: str) -> None:
@@ -121,10 +166,20 @@ class ReferenceGraph:
         Args:
             node (str): The node to remove.
         """
+        for child in list(self.adj.get(node, set())):
+            self.rev_adj[child].remove(node)
+            if not self.rev_adj[child]:
+                del self.rev_adj[child]
+                self._roots.add(child)
+
+        for parent in list(self.rev_adj.get(node, set())):
+            self.adj[parent].remove(node)
+            if not self.adj[parent]:
+                del self.adj[parent]
+
         self.adj.pop(node, None)
+        self.rev_adj.pop(node, None)
         self._roots.discard(node)
-        for children in self.adj.values():
-            children.discard(node)
 
     def replace_node(self, old_node: str, new_node: str) -> None:
         """
@@ -136,16 +191,22 @@ class ReferenceGraph:
         """
         if old_node in self.adj:
             self.adj[new_node] = self.adj.pop(old_node)
-        for parent in list(self.adj.keys()):
-            if old_node in self.adj[parent]:
+            for child in self.adj[new_node]:
+                self.rev_adj[child].remove(old_node)
+                self.rev_adj[child].add(new_node)
+
+        if old_node in self.rev_adj:
+            self.rev_adj[new_node] = self.rev_adj.pop(old_node)
+            for parent in self.rev_adj[new_node]:
                 self.adj[parent].remove(old_node)
                 self.adj[parent].add(new_node)
+
         if old_node in self._roots:
             self._roots.remove(old_node)
             self._roots.add(new_node)
-        if old_node in self.non_roots:
-            self.non_roots.remove(old_node)
-            self.non_roots.add(new_node)
+        if old_node in self._non_roots:
+            self._non_roots.remove(old_node)
+            self._non_roots.add(new_node)
 
     def _traverse(self, node: str, direction: str) -> set[str]:
         """
@@ -164,7 +225,7 @@ class ReferenceGraph:
             neighbors = (
                 self.adj.get(n, set())
                 if direction == "descendants"
-                else self.get_parents(n)
+                else self.rev_adj.get(n, set())
             )
             for neighbor in neighbors:
                 if neighbor not in related_nodes:
@@ -218,7 +279,7 @@ class ReferenceGraph:
         Returns:
             set[str]: A set of all nodes in the graph.
         """
-        return set(self.adj.keys()) | {c for cs in self.adj.values() for c in cs}
+        return set(self.adj.keys()) | set(self.rev_adj.keys())
 
     def to_obj(self) -> dict[str, list[str]]:
         """

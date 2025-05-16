@@ -5,6 +5,7 @@ from s2doc.element import Element
 from s2doc.errors import AreaNotFoundError, PageNotFoundError
 from s2doc.geometry import RectangleRegion
 from s2doc.page import Page
+from s2doc.semantics import SemanticEntity, SemanticType
 from s2doc.space import Space
 
 
@@ -19,7 +20,9 @@ def test_add_page(document):
 
 
 def test_add_element(document):
-    page_id = document.add_page()
+    page_id = document.add_page(Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, False]),
+        } ))
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
     assert element_id in document.elements
@@ -32,7 +35,9 @@ def test_add_element_invalid_page(document):
 
 
 def test_delete_element(document):
-    page_id = document.add_page()
+    page_id = document.add_page(Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, False]),
+        } ))
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
     document.delete_element(element_id)
@@ -40,7 +45,9 @@ def test_delete_element(document):
 
 
 def test_replace_element(document):
-    page_id = document.add_page()
+    page_id = document.add_page(Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, False]),
+        } ))
     region = RectangleRegion(0, 0, 100, 100, "img")
     old_element_id = document.add_element(page=page_id, category="Test", region=region)
     new_element = Element.create("new_element", region=region, category="Test")
@@ -135,7 +142,11 @@ def test_get_visible_elements_yup(document):
 
 
 def test_get_element_data_value(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(
         page=page_id, category="Test", region=region, data={"content": "test_content"}
@@ -151,7 +162,11 @@ def test_add_revision(document):
 
 
 def test_get_element_type(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     document.add_element(page=page_id, category="Test", region=region)
     elements = list(document.get_element_type("Test"))
@@ -160,7 +175,11 @@ def test_get_element_type(document):
 
 
 def test_is_referenced_by(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id_1 = document.add_element(page=page_id, category="Test", region=region)
     element_id_2 = document.add_element(
@@ -175,7 +194,11 @@ def test_get_img_snippet_invalid_element(document):
 
 
 def test_delete_elements(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region_1 = RectangleRegion(0, 0, 100, 100, "img")
     region_2 = RectangleRegion(150, 0, 250, 100, "img")
     element_id_1 = document.add_element(page=page_id, category="Test", region=region_1)
@@ -187,7 +210,11 @@ def test_delete_elements(document):
 
 
 def test_find_page_of_element(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
 
@@ -196,7 +223,11 @@ def test_find_page_of_element(document):
 
 
 def test_get_latest_elements(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
 
@@ -205,7 +236,11 @@ def test_get_latest_elements(document):
 
 
 def test_get_elements_at_position(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        })
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
 
@@ -215,7 +250,11 @@ def test_get_elements_at_position(document):
 
 
 def test_get_img_snippets(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
 
@@ -226,7 +265,11 @@ def test_get_img_snippets(document):
 
 
 def test_get_img_snippet_from_bb(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
 
     snippet = document.get_img_snippet_from_bb(region, page_id, as_string=False)
@@ -236,7 +279,11 @@ def test_get_img_snippet_from_bb(document):
 
 
 def test_annotate_element_with_uri(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
 
@@ -246,21 +293,34 @@ def test_annotate_element_with_uri(document):
 
 
 def test_annotate_element_with_entity(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        } )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
 
     entity = SemanticEntity(uri="http://example.com/entity")
+
+    document.semantic_network.add_entity(entity)
     document.annotate_element_with_entity(element_id, entity)
+
     assert entity.uri in document.semantic_references.get_descendants(element_id)
 
 
 def test_annotate_element_with_type(document):
-    page_id = document.add_page()
+    page_id = document.add_page(
+        Page("page-0", 0, None, {
+            "img": Space("img", [1000,1000], [True, True]),
+        })
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
 
     semantic_type = SemanticType(uri="http://example.com/type")
+    document.semantic_network.add_type(semantic_type)
+
     document.annotate_element_with_type(element_id, semantic_type)
     assert semantic_type.uri in document.semantic_references.get_descendants(element_id)
 
@@ -268,10 +328,7 @@ def test_annotate_element_with_type(document):
 def test_document_to_obj_and_from_dict(document):
     import json
     # Convert the document to a dictionary
-    document_dict = document.to_obj()
-
-    # Serialize the dictionary to JSON
-    document_json = json.dumps(document_dict)
+    document_json = document.to_json()
 
     # Deserialize the JSON back to a dictionary
     loaded_dict = json.loads(document_json)

@@ -21,14 +21,14 @@ def test_page_initialization(page):
 
 
 def test_factor_between_spaces(page):
-    page.spaces["xml"] = Space(label="xml", dimensions=[100.0, 200.0])
-    page.spaces["img"] = Space(label="img", dimensions=[200.0, 400.0])
+    page.spaces["xml"] = Space(label="xml", dimensions=[100.0, 200.0], axis_directions=[True, False])
+    page.spaces["img"] = Space(label="img", dimensions=[200.0, 400.0], axis_directions=[True, False])
     factor = page.factor_between_spaces("xml", "img")
-    assert factor == (2.0, 2.0)
+    assert factor == [2.0, 2.0]
 
 
 def test_factor_between_spaces_incompatible(page):
-    page.spaces["xml"] = Space(label="xml", dimensions=[100.0, 200.0])
+    page.spaces["xml"] = Space(label="xml", dimensions=[100.0, 200.0], axis_directions=[True, False])
     with pytest.raises(IncompatibleError):
         page.factor_between_spaces("xml", "nonexistent")
 

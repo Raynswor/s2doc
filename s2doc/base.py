@@ -1,13 +1,13 @@
-import abc
+from abc import ABC, abstractmethod
 
 
-class DocObj(abc.ABC):
+class DocObj(ABC):
     @classmethod
-    @abc.abstractmethod
+    @abstractmethod
     def from_dict(cls, d: dict) -> "DocObj":
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def to_obj(self) -> dict:
         pass
 

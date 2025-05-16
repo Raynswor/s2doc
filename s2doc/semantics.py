@@ -13,6 +13,55 @@ def extract_label_from_uri(uri: str) -> str:
     return uri
 
 
+class Literal:
+    _TYPE_MAP = {
+        str: "xsd:string",
+        int: "xsd:integer",
+        float: "xsd:decimal",
+        bool: "xsd:boolean",
+    }
+
+    def __init__(
+        self, value: str | int | float | bool, datatype: str | None = None
+    ) -> None:
+        self.value = value
+        # infer datatype if not explicitly provided
+        self.datatype = (
+            datatype
+            if datatype is not None
+            else self._TYPE_MAP.get(type(value), "xsd:string")
+        )
+
+    def __str__(self) -> str:
+        # wrap strings in quotes, leave numbers/booleans unquoted
+        if isinstance(self.value, str):
+            lex = f'"{self.value}"'
+        else:
+            lex = str(self.value)
+        return f"{lex}^^{self.datatype}"
+
+    def to_obj(self) -> dict[str, str | int | float | bool]:
+        return {
+            "value": self.value,
+            "datatype": self.datatype,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Literal":
+        """
+        Deserialize from dict, expecting keys "value" and optional "datatype".
+        """
+        try:
+            return cls(d["value"], d.get("datatype"))
+        except KeyError as e:
+            raise LoadFromDictError(cls.__name__, str(e))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Literal):
+            return False
+        return self.value == other.value and self.datatype == other.datatype
+
+
 class SemanticType:
     def __init__(self, uri: str, label: str | None = None) -> None:
         self.uri: str = uri
@@ -39,30 +88,38 @@ class SemanticType:
             return self.uri == other.uri
         return False
 
+    def __hash__(self) -> int:
+        return hash(self.uri)
+
 
 class SemanticEntity:
     # equivalent to instances in ontology
     def __init__(
         self,
         uri: str,
-        label: str,
+        label: str | None = None,
         type: str | SemanticType | None = None,
         flags: dict | None = None,
+        literals: dict[str, Literal] | None = None,
     ) -> None:
         self.uri: str = uri
-        self.label: str = label
+        self.label: str = label or extract_label_from_uri(uri)
         self.type: str | SemanticType | None = type
         self.flags: dict[str, bool | str | int] = flags or {}
-
-    def __post_init__(self):
-        if not self.label:
-            self.label = extract_label_from_uri(self.uri)
+        self.literals: dict[str, Literal] = literals or {}
 
     @classmethod
     def from_dict(cls, d: dict):
         try:
+            literals = {
+                k: Literal.from_dict(v) for k, v in d.get("literals", {}).items()
+            }
             return cls(
-                d["uri"], d.get("label") or "", d.get("type"), d.get("flags") or {}
+                d["uri"],
+                d.get("label") or "",
+                d.get("type"),
+                d.get("flags") or {},
+                literals,
             )
         except KeyError as e:
             raise LoadFromDictError(cls.__name__, str(e))
@@ -78,6 +135,8 @@ class SemanticEntity:
         }
         if self.flags:
             ret["flags"] = self.flags
+        if self.literals:
+            ret["literals"] = {k: v.to_obj() for k, v in self.literals.items()}
         return ret
 
     def __eq__(self, other: object) -> bool:
@@ -88,6 +147,9 @@ class SemanticEntity:
             and self.type == other.type
             and self.flags == other.flags
         )
+
+    def __hash__(self) -> int:
+        return hash(self.uri)
 
 
 class SemanticRelationship:
@@ -121,8 +183,11 @@ class SemanticRelationship:
         except KeyError as e:
             raise LoadFromDictError(cls.__name__, str(e))
 
+    def __hash__(self) -> int:
+        return hash((self.label, self.head, self.tail))
 
-class SemanticNetwork:
+
+class SemanticKnowledgeGraph:
     """
     Contains all semantic entities and relationships between them in the document.
     Types are not defined here.
@@ -160,34 +225,40 @@ class SemanticNetwork:
                 self.entities[inst.iri] = SemanticEntity(inst.iri, inst.name, typ)
             self.available_types[cls.iri] = typ
 
+        self.resolve_literals()
         self.resolve_relationships()
 
-    def draw_graph(self):
-        import matplotlib.pyplot as plt
-        import networkx as nx
+    def add_entity(self, entity: SemanticEntity):
+        assert isinstance(entity, SemanticEntity)
+        if entity.uri in self.entities:
+            raise KeyError(f"Entity '{entity.uri}' already in network")
+        self.entities[entity.uri] = entity
+        if entity.type and isinstance(entity.type, SemanticType):
+            self.available_types[entity.type.uri] = entity.type
 
-        G = nx.DiGraph()
-        for ent in self.entities.values():
-            G.add_node(ent.label)
-        for rel in self.relationships:
-            if isinstance(rel.head, str):
-                h = rel.head
-            else:
-                h = rel.head.label
-            if isinstance(rel.tail, str):
-                t = rel.tail
-            else:
-                t = rel.tail.label
-            G.add_edge(h, t, label=rel.label)
-        pos = nx.spring_layout(G)
-        nx.draw_networkx(G, pos, node_color="lightblue", edge_color="gray")
-        edge_labels = nx.get_edge_attributes(G, "label")
-        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
-        plt.show()
+    def add_type(self, t: SemanticType):
+        assert isinstance(t, SemanticType)
+        if t.uri in self.available_types:
+            raise KeyError(f"Type '{t.uri}' already in network")
+        self.available_types[t.uri] = t
 
-    def add_relationship(self, relationship: SemanticRelationship):
-        assert isinstance(relationship.head, (str, SemanticEntity))
-        assert isinstance(relationship.tail, (str, SemanticEntity))
+    def add_relationship(
+        self,
+        *,
+        head: SemanticEntity | None = None,
+        tail: SemanticEntity | None = None,
+        label: str | None = None,
+        relationship: SemanticRelationship | None = None,
+    ):
+        if relationship is None:
+            if head is None or tail is None or label is None:
+                raise ValueError(
+                    "Either a relationship or head, tail, and label must be provided"
+                )
+            relationship = SemanticRelationship(label, head, tail)
+        else:
+            assert isinstance(relationship.head, (str, SemanticEntity))
+            assert isinstance(relationship.tail, (str, SemanticEntity))
         self.relationships.append(relationship)
 
     def resolve_relationships(self):
@@ -196,6 +267,34 @@ class SemanticNetwork:
                 rel.head = self.entities[rel.head]
             if isinstance(rel.tail, str):
                 rel.tail = self.entities[rel.tail]
+
+    def resolve_literals(self):
+        """
+        Populate each entity’s `literals` dict from OWL data properties.
+        """
+        for dp in self.src_ontology.data_properties():
+            prop_iri = dp.iri
+            # dp[inst] returns the list of Python values for that individual
+            for inst in dp.domain:  # or iterate dp.get_relations() if preferred
+                values = dp[inst]
+                for v in values:
+                    # infer datatype IRI if declared; else default to xsd:string
+                    datatype = dp.range[0].iri if dp.range else "xsd:string"
+                    lit = Literal(v, datatype)
+                    ent = self.entities.get(inst.iri)
+                    if ent is not None:
+                        ent.literals[prop_iri] = lit
+
+    def add_literal_property(
+        self, entity_uri: str, prop_uri: str, literal: Literal
+    ) -> None:
+        """
+        Attach a new literal to an existing SemanticEntity.
+        """
+        ent = self.entities.get(entity_uri)
+        if ent is None:
+            raise KeyError(f"Entity '{entity_uri}' not in network")
+        ent.literals[prop_uri] = literal
 
     def to_obj(self):
         return {
