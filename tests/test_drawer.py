@@ -1,6 +1,6 @@
 import pytest
 
-from s2doc import (
+from src import (
     Document,
     Drawer,
     Page,
@@ -8,8 +8,8 @@ from s2doc import (
     SemanticEntity,
     Space,
 )
-from s2doc.geometry import RectangleRegion
-from s2doc.semantics import SemanticType
+from src.geometry import RectangleRegion
+from src.semantics import SemanticType
 
 
 @pytest.fixture

@@ -1,8 +1,8 @@
 import pytest
 
-from s2doc.errors import IncompatibleError, LoadFromDictError
+from src.errors import IncompatibleError, LoadFromDictError
 
-from s2doc.geometry import (
+from src.geometry import (
     LineRegion,
     PolylineRegion,
     RectangleRegion,

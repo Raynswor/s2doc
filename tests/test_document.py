@@ -1,12 +1,12 @@
 import pytest
 
-from s2doc.document import Document
-from s2doc.element import Element
-from s2doc.errors import AreaNotFoundError, PageNotFoundError
-from s2doc.geometry import RectangleRegion
-from s2doc.page import Page
-from s2doc.semantics import SemanticEntity, SemanticType
-from s2doc.space import Space
+from src.document import Document
+from src.element import Element
+from src.errors import AreaNotFoundError, PageNotFoundError
+from src.geometry import RectangleRegion
+from src.page import Page
+from src.semantics import SemanticEntity, SemanticType
+from src.space import Space
 
 
 @pytest.fixture

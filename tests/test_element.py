@@ -1,9 +1,9 @@
 import re
 import pytest
 
-from s2doc.element import Element, Table
-from s2doc.errors import IncompatibleError
-from s2doc.geometry import RectangleRegion
+from src.element import Element, Table
+from src.errors import IncompatibleError
+from src.geometry import RectangleRegion
 
 
 def test_element_initialization():

@@ -46,16 +46,11 @@ class Drawer:
         self._cached_colors = {}
 
         # Convert to NetworkX graph(s)
-        result = self._convert_to_networkx(self.drawing_obj)
-        if isinstance(result, tuple):
-            self.nx_graph, self.semantic_graph = result
-        else:
-            self.nx_graph = result
-            self.semantic_graph = None
+        self.nx_graph, self.semantic_graph = self._convert_to_networkx(self.drawing_obj)
 
     def _convert_to_networkx(
         self, drawing_obj
-    ) -> nx.DiGraph | tuple[nx.DiGraph, nx.DiGraph]:
+    ) -> tuple[nx.DiGraph, nx.DiGraph | None]:
         """
         Convert the graph to a NetworkX directed graph.
 
@@ -77,7 +72,7 @@ class Drawer:
                     for child in children
                 ]
             )
-            return G
+            return G, None
 
         elif isinstance(drawing_obj, SemanticKnowledgeGraph):
             G = nx.DiGraph()
@@ -116,18 +111,18 @@ class Drawer:
             G.add_nodes_from(nodes_to_add)
             G.add_edges_from(edges_to_add)
 
-            return G
+            return G, None
 
         elif isinstance(drawing_obj, Document):
             # Create separate graphs for document and semantic network
-            G_ref = self._convert_to_networkx(drawing_obj.references)
-            G_sem = self._convert_to_networkx(drawing_obj.semantic_network)
+            G_ref, _ = self._convert_to_networkx(drawing_obj.references)
+            G_sem, _ = self._convert_to_networkx(drawing_obj.semantic_network)
 
             # Return both graphs for more flexibility in visualization
-            return (G_ref, G_sem)
+            return G_ref, G_sem
 
         # Default fallback
-        return nx.DiGraph()
+        return nx.DiGraph(), None
 
     def get_layout(self, graph, layout_name="spring", **kwargs):
         """Get a cached layout or compute a new one.
@@ -212,7 +207,7 @@ class Drawer:
             return
 
         handles = [
-            plt.Line2D(
+            plt.Line2D( # type: ignore
                 [0],
                 [0],
                 marker="o",
@@ -513,7 +508,6 @@ class Drawer:
         source: str,
         target: str,
         figsize: tuple[int, int] = (10, 8),
-        path_color: str = "red",
         show_plot: bool = True,
         save_path: str | None = None,
     ) -> bool:
@@ -564,7 +558,7 @@ class Drawer:
                 pos,
                 nodelist=path,
                 node_size=700,
-                node_color="yellow",
+                node_color=self.DEFAULT_COLORS["highlight"]["node"],
                 alpha=0.8,
             )
             nx.draw_networkx_edges(
@@ -572,7 +566,7 @@ class Drawer:
                 pos,
                 edgelist=path_edges,
                 width=2.5,
-                edge_color=path_color,
+                edge_color=self.DEFAULT_COLORS["highlight"]["edge"],
                 alpha=1.0,
             )
 

@@ -1,9 +1,9 @@
 import pytest
 
-from s2doc.errors import IncompatibleError
-from s2doc.page import Page
-from s2doc.pageLayout import PageLayout, TypographicLayout
-from s2doc.space import Space
+from src.errors import IncompatibleError
+from src.page import Page
+from src.pageLayout import PageLayout, TypographicLayout
+from src.space import Space
 
 
 @pytest.fixture

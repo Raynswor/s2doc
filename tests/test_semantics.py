@@ -1,6 +1,6 @@
 import pytest
 
-from s2doc.semantics import (
+from src.semantics import (
     Literal,
     SemanticEntity,
     SemanticKnowledgeGraph,

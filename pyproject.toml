@@ -3,6 +3,9 @@ name = "s2doc"
 version = "0.1.0"
 description = "A standardized spatial-semantic document representation format for processing pipelines."
 readme = "README.md"
+authors = [
+    {name = "Sebastian Kempf", email = "sebastian.kempf@uni-wuerzburg.de" },
+]
 requires-python = ">=3.13"
 dependencies = [
     "pillow",
@@ -10,6 +13,7 @@ dependencies = [
     "numpy",
     "owlready2",
 ]
+
 keywords = ["document processing", "semantic annotation", "layout analysis", "spatial modeling", "document representation"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -31,3 +35,8 @@ dev = [
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
 ]
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
