@@ -1,9 +1,9 @@
 import pytest
 
-from src.errors import IncompatibleError
-from src.page import Page
-from src.pageLayout import PageLayout, TypographicLayout
-from src.space import Space
+from src.s2doc.errors import IncompatibleError
+from src.s2doc.page import Page
+from src.s2doc.pageLayout import PageLayout, TypographicLayout
+from src.s2doc.space import Space
 
 
 @pytest.fixture
@@ -21,21 +21,27 @@ def test_page_initialization(page):
 
 
 def test_factor_between_spaces(page):
-    page.spaces["xml"] = Space(label="xml", dimensions=[100.0, 200.0], axis_directions=[True, False])
-    page.spaces["img"] = Space(label="img", dimensions=[200.0, 400.0], axis_directions=[True, False])
+    page.spaces["xml"] = Space(
+        label="xml", dimensions=[100.0, 200.0], axis_directions=[True, False]
+    )
+    page.spaces["img"] = Space(
+        label="img", dimensions=[200.0, 400.0], axis_directions=[True, False]
+    )
     factor = page.factor_between_spaces("xml", "img")
     assert factor == [2.0, 2.0]
 
 
 def test_factor_between_spaces_incompatible(page):
-    page.spaces["xml"] = Space(label="xml", dimensions=[100.0, 200.0], axis_directions=[True, False])
+    page.spaces["xml"] = Space(
+        label="xml", dimensions=[100.0, 200.0], axis_directions=[True, False]
+    )
     with pytest.raises(IncompatibleError):
         page.factor_between_spaces("xml", "nonexistent")
 
 
 def test_set_typographic_columns(page):
     page.set_typographic_columns(columns=2)
-    assert page.layout.typography_style ==  TypographicLayout.TWO_COLUMN
+    assert page.layout.typography_style == TypographicLayout.TWO_COLUMN
 
     page.set_typographic_columns(column_fractions=[0.5, 0.5])
     assert page.layout.column_fractions == [0.5, 0.5]
@@ -73,14 +79,16 @@ def test_from_dict():
         "number": 1,
         "img": None,
         "spaces": {
-            "xml": {"label": "xml",
-                    "dimensions": [100.0, 200.0],
-                    "axis_directions": [True, False]
-                    },
-            "img": {"label": "img",
-                    "dimensions": [200.0, 400.0],
-                    "axis_directions": [True, False]
-                    },
+            "xml": {
+                "label": "xml",
+                "dimensions": [100.0, 200.0],
+                "axis_directions": [True, False],
+            },
+            "img": {
+                "label": "img",
+                "dimensions": [200.0, 400.0],
+                "axis_directions": [True, False],
+            },
         },
         "layout": {},
     }

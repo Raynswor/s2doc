@@ -1,6 +1,6 @@
 import pytest
 
-from src import (
+from src.s2doc import (
     Document,
     Drawer,
     Page,
@@ -8,8 +8,8 @@ from src import (
     SemanticEntity,
     Space,
 )
-from src.geometry import RectangleRegion
-from src.semantics import SemanticType
+from src.s2doc.geometry import RectangleRegion
+from src.s2doc.semantics import SemanticType
 
 
 @pytest.fixture
@@ -175,6 +175,8 @@ def test_highlight_path_document(sample_document):
 def test_visualize_subgraph_document(sample_document):
     drawer = Drawer(sample_document.references)
     try:
-        drawer.visualize_subgraph(["page-0", "Table1"])  # Ensure no exceptions are raised
+        drawer.visualize_subgraph(
+            ["page-0", "Table1"]
+        )  # Ensure no exceptions are raised
     except Exception as e:
         pytest.fail(f"Drawer.visualize_subgraph raised an exception for Document: {e}")

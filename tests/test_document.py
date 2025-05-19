@@ -1,12 +1,12 @@
 import pytest
 
-from src.document import Document
-from src.element import Element
-from src.errors import AreaNotFoundError, PageNotFoundError
-from src.geometry import RectangleRegion
-from src.page import Page
-from src.semantics import SemanticEntity, SemanticType
-from src.space import Space
+from src.s2doc.document import Document
+from src.s2doc.element import Element
+from src.s2doc.errors import AreaNotFoundError, PageNotFoundError
+from src.s2doc.geometry import RectangleRegion
+from src.s2doc.page import Page
+from src.s2doc.semantics import SemanticEntity, SemanticType
+from src.s2doc.space import Space
 
 
 @pytest.fixture
@@ -20,9 +20,16 @@ def test_add_page(document):
 
 
 def test_add_element(document):
-    page_id = document.add_page(Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, False]),
-        } ))
+    page_id = document.add_page(
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, False]),
+            },
+        )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
     assert element_id in document.elements
@@ -35,9 +42,16 @@ def test_add_element_invalid_page(document):
 
 
 def test_delete_element(document):
-    page_id = document.add_page(Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, False]),
-        } ))
+    page_id = document.add_page(
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, False]),
+            },
+        )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
     document.delete_element(element_id)
@@ -45,9 +59,16 @@ def test_delete_element(document):
 
 
 def test_replace_element(document):
-    page_id = document.add_page(Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, False]),
-        } ))
+    page_id = document.add_page(
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, False]),
+            },
+        )
+    )
     region = RectangleRegion(0, 0, 100, 100, "img")
     old_element_id = document.add_element(page=page_id, category="Test", region=region)
     new_element = Element.create("new_element", region=region, category="Test")
@@ -58,9 +79,14 @@ def test_replace_element(document):
 
 def test_get_visible_elements_ydown(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, False]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, False]),
+            },
+        )
     )
     region_1 = RectangleRegion(0, 0, 100, 100, "img")
     region_2 = RectangleRegion(150, 0, 250, 100, "img")
@@ -80,30 +106,43 @@ def test_get_visible_elements_ydown(document):
     #
     #
 
-    visible_elements = [x.oid for x in document.get_visible_elements(element_id_2,  "right", "Test")]
+    visible_elements = [
+        x.oid for x in document.get_visible_elements(element_id_2, "right", "Test")
+    ]
     # should be element3
     assert len(visible_elements) == 1
     assert element_id_3 in visible_elements
 
-    visible_elements = [x.oid for x in document.get_visible_elements(element_id_2, "left", "Test")]
+    visible_elements = [
+        x.oid for x in document.get_visible_elements(element_id_2, "left", "Test")
+    ]
     assert len(visible_elements) == 1
     assert element_id_1 in visible_elements
 
-    visible_elements = [x.oid for x in document.get_visible_elements(element_id_4, "above", "Test")]
+    visible_elements = [
+        x.oid for x in document.get_visible_elements(element_id_4, "above", "Test")
+    ]
     assert len(visible_elements) == 2
     assert element_id_1 in visible_elements
     assert element_id_5 in visible_elements
 
-    visible_elements = [x.oid for x in document.get_visible_elements(element_id_2, "below", "Test")]
+    visible_elements = [
+        x.oid for x in document.get_visible_elements(element_id_2, "below", "Test")
+    ]
     assert len(visible_elements) == 1
     assert element_id_5 in visible_elements
 
 
 def test_get_visible_elements_yup(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region_1 = RectangleRegion(0, 0, 100, 100, "img")
     region_2 = RectangleRegion(150, 0, 250, 100, "img")
@@ -121,31 +160,43 @@ def test_get_visible_elements_yup(document):
     #        | 5 |
     # | 1 |  | 2 |  | 3 |
 
-    visible_elements = [x.oid for x in document.get_visible_elements(element_id_2,  "right", "Test")]
+    visible_elements = [
+        x.oid for x in document.get_visible_elements(element_id_2, "right", "Test")
+    ]
     # should be element3
     assert len(visible_elements) == 1
     assert element_id_3 in visible_elements
 
-    visible_elements = [x.oid for x in document.get_visible_elements(element_id_2, "left", "Test")]
+    visible_elements = [
+        x.oid for x in document.get_visible_elements(element_id_2, "left", "Test")
+    ]
     assert len(visible_elements) == 1
     assert element_id_1 in visible_elements
 
-    visible_elements = [x.oid for x in document.get_visible_elements(element_id_5, "above", "Test")]
+    visible_elements = [
+        x.oid for x in document.get_visible_elements(element_id_5, "above", "Test")
+    ]
     assert len(visible_elements) == 1
     assert element_id_4 in visible_elements
 
-    visible_elements = [x.oid for x in document.get_visible_elements(element_id_4, "below", "Test")]
+    visible_elements = [
+        x.oid for x in document.get_visible_elements(element_id_4, "below", "Test")
+    ]
     assert len(visible_elements) == 2
     assert element_id_1 in visible_elements
     assert element_id_5 in visible_elements
 
 
-
 def test_get_element_data_value(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(
@@ -163,9 +214,14 @@ def test_add_revision(document):
 
 def test_get_element_type(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     document.add_element(page=page_id, category="Test", region=region)
@@ -176,9 +232,14 @@ def test_get_element_type(document):
 
 def test_is_referenced_by(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id_1 = document.add_element(page=page_id, category="Test", region=region)
@@ -195,9 +256,14 @@ def test_get_img_snippet_invalid_element(document):
 
 def test_delete_elements(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region_1 = RectangleRegion(0, 0, 100, 100, "img")
     region_2 = RectangleRegion(150, 0, 250, 100, "img")
@@ -211,9 +277,14 @@ def test_delete_elements(document):
 
 def test_find_page_of_element(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
@@ -224,9 +295,14 @@ def test_find_page_of_element(document):
 
 def test_get_latest_elements(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
@@ -237,9 +313,14 @@ def test_get_latest_elements(document):
 
 def test_get_elements_at_position(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        })
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
@@ -251,9 +332,14 @@ def test_get_elements_at_position(document):
 
 def test_get_img_snippets(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
@@ -266,9 +352,14 @@ def test_get_img_snippets(document):
 
 def test_get_img_snippet_from_bb(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
 
@@ -280,9 +371,14 @@ def test_get_img_snippet_from_bb(document):
 
 def test_annotate_element_with_uri(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
@@ -294,9 +390,14 @@ def test_annotate_element_with_uri(document):
 
 def test_annotate_element_with_entity(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        } )
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
@@ -311,9 +412,14 @@ def test_annotate_element_with_entity(document):
 
 def test_annotate_element_with_type(document):
     page_id = document.add_page(
-        Page("page-0", 0, None, {
-            "img": Space("img", [1000,1000], [True, True]),
-        })
+        Page(
+            "page-0",
+            0,
+            None,
+            {
+                "img": Space("img", [1000, 1000], [True, True]),
+            },
+        )
     )
     region = RectangleRegion(0, 0, 100, 100, "img")
     element_id = document.add_element(page=page_id, category="Test", region=region)
@@ -327,6 +433,7 @@ def test_annotate_element_with_type(document):
 
 def test_document_to_obj_and_from_dict(document):
     import json
+
     # Convert the document to a dictionary
     document_json = document.to_json()
 
@@ -349,5 +456,10 @@ def test_document_to_obj_and_from_dict(document):
     ]
     assert document.metadata == loaded_document.metadata
     assert document.raw_pdf == loaded_document.raw_pdf
-    assert document.semantic_network.to_obj() == loaded_document.semantic_network.to_obj()
-    assert document.semantic_references.to_obj() == loaded_document.semantic_references.to_obj()
+    assert (
+        document.semantic_network.to_obj() == loaded_document.semantic_network.to_obj()
+    )
+    assert (
+        document.semantic_references.to_obj()
+        == loaded_document.semantic_references.to_obj()
+    )
