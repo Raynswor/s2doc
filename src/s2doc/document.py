@@ -581,10 +581,10 @@ class Document(DocObj):
         )
         return cropped if not as_string else img_to_base64(cropped)
 
-    def get_img_page(self, page: str, as_string: bool = True) -> str | Image.Image:
+    def get_img_page(self, page: str, as_base64_string: bool = True) -> str | Image.Image:
         p = page if page in self.pages.allIds else ""
         return (
-            (self.pages[p].img if as_string else base64_to_img(self.pages[p].img))
+            (self.pages[p].img if as_base64_string else base64_to_img(self.pages[p].img))
             if p
             else ""
         )

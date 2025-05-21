@@ -3,7 +3,7 @@ from .document import Document
 from .drawer import Drawer
 from .element import Element, Table
 from .font import Font
-from .geometry import RectangleRegion, Region, SpanRegion
+from .geometry import RectangleRegion, Region, SpanRegion, LineRegion, PolygonRegion
 from .group import GroupedAreas
 from .normalizedObject import NormalizedObj
 from .page import Page
@@ -22,6 +22,8 @@ __all__ = [
     "Region",
     "RectangleRegion",
     "SpanRegion",
+    "LineRegion",
+    "PolygonRegion",
     "NormalizedObj",
     "Page",
     "PageLayout",
