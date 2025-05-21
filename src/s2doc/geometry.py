@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from shapely import LineString, Polygon
 
 from .errors import IncompatibleError, LoadFromDictError
+from typing import Self
 
 
 def check_space(func):
@@ -90,7 +91,7 @@ class Region(ABC):
                 )
 
     @abstractmethod
-    def convert_space(self, factors: list[float], space: str) -> "Region":
+    def convert_space(self, factors: list[float], space: str) -> Self:
         pass
 
     @abstractmethod

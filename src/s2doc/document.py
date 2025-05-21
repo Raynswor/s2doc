@@ -3,7 +3,8 @@ import json
 import logging
 import uuid
 from collections.abc import Callable, Generator, Iterable
-from typing import Any
+from typing import Literal as L
+from typing import Any, overload
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -581,6 +582,12 @@ class Document(DocObj):
         )
         return cropped if not as_string else img_to_base64(cropped)
 
+    @overload
+    def get_img_page(self, page: str, as_base64_string: L[True]) -> str: ...
+    
+    @overload
+    def get_img_page(self, page: str, as_base64_string: L[False]) -> Image.Image: ...
+    
     def get_img_page(self, page: str, as_base64_string: bool = True) -> str | Image.Image:
         p = page if page in self.pages.allIds else ""
         return (
@@ -588,6 +595,7 @@ class Document(DocObj):
             if p
             else ""
         )
+
 
     def transpose_page(self, page_id: str):
         for obj in self.references.get_descendants(page_id):
