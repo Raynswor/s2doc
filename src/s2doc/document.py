@@ -3,8 +3,8 @@ import json
 import logging
 import uuid
 from collections.abc import Callable, Generator, Iterable
-from typing import Literal as L
 from typing import Any, overload
+from typing import Literal as L
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -48,56 +48,61 @@ class Document(DocObj):
         raw_pdf: bytes | None = None,
     ):
         self.oid: str = oid
-        self.pages: NormalizedObj[Page] = pages if pages else NormalizedObj[Page]()
-        self.elements: NormalizedObj[Element] = (
-            elements if elements else NormalizedObj[Element]()
-        )
-        self.fonts: list[Font] = fonts if fonts else list()
+        self.pages: NormalizedObj[Page] = pages or NormalizedObj[Page]()
+        self.elements: NormalizedObj[Element] = elements or NormalizedObj[Element]()
+        self.fonts: list[Font] = fonts or []
 
         # manages connections between spatial elements (elements)
         # --> always is_part_of/has_subpart or something like that
-        self.references: ReferenceGraph = references if references else ReferenceGraph()
-        self.revisions: list[Revision] = (
-            revisions
-            if revisions
-            else [
-                Revision(
-                    datetime.datetime.now().isoformat(timespec="milliseconds"),
-                    set(),
-                    comment="Initial Revision",
-                )
-            ]
-        )
+        self.references: ReferenceGraph = references or ReferenceGraph()
+
+        # Create initial revision if none provided
+        self.revisions: list[Revision] = revisions or [
+            Revision(
+                datetime.datetime.now().isoformat(timespec="milliseconds"),
+                set(),
+                comment="Initial Revision",
+            )
+        ]
+
         # manages available Types (classes), Entities (instances) and Relations
         self.semantic_network: SemanticKnowledgeGraph = (
-            semantic_network if semantic_network else SemanticKnowledgeGraph()
+            semantic_network or SemanticKnowledgeGraph()
         )
+
         # manages the connections between spatial elements (elements) and semantic entities
         # always is_of_class OR is_individual relations
         self.semantic_references: ReferenceGraph = (
             semantic_references or ReferenceGraph()
         )
 
-        self.metadata: dict[str, Any] = metadata if metadata else dict()
+        self.metadata: dict[str, Any] = metadata or {}
         self.raw_pdf: bytes | None = raw_pdf
 
+        # Cache the ID generation function
         self.id_generation_variant: Callable[..., str] = self._generate_element_id(
             "long"
         )
 
     def _generate_element_id(self, variant: str) -> Callable[..., str]:
-        def generate_uuid():
-            return str(uuid.uuid4())[:8]
+        """Generate a function that creates element IDs based on the specified variant."""
+        # Create a UUID generator with a small cache for better performance
+        uuid_cache = []
+
+        def get_uuid():
+            if not uuid_cache:
+                # Pre-generate a small batch of UUIDs for better performance
+                uuid_cache.extend(str(uuid.uuid4())[:8] for _ in range(5))
+            return uuid_cache.pop()
 
         def generate_long_id(page, category):
-            return f"{self.oid}-{self.pages[page].number}-{category}-{generate_uuid()}"
+            return f"{self.oid}-{self.pages[page].number}-{category}-{get_uuid()}"
 
         variants = {
-            "uuid": lambda page, category: generate_uuid(),
-            "document": lambda page, category: f"{self.oid}-{generate_uuid()}",
-            "page": lambda page,
-            category: f"{self.pages[page].number}-{generate_uuid()}",
-            "category": lambda page, category: f"{category}-{generate_uuid()}",
+            "uuid": lambda page, category: get_uuid(),
+            "document": lambda page, category: f"{self.oid}-{get_uuid()}",
+            "page": lambda page, category: f"{self.pages[page].number}-{get_uuid()}",
+            "category": lambda page, category: f"{category}-{get_uuid()}",
             "long": generate_long_id,
         }
 
@@ -150,7 +155,7 @@ class Document(DocObj):
             raise DocumentError("region must be an instance of Region.")
 
         if isinstance(page, str):
-            page_obj: Page = self.pages.get(key=page)
+            page_obj: Page | None = self.pages.get(key=page)
             if not page_obj:
                 raise PageNotFoundError(f"Page '{page}' does not exist.")
         elif isinstance(page, Page):
@@ -160,7 +165,7 @@ class Document(DocObj):
             region = region.convert_space(
                 page_obj.factor_between_spaces("img", "xml"), "xml"
             )
-        space: Space = page_obj.spaces.get(region.space)
+        space: Space | None = page_obj.spaces.get(region.space)
         if not space:
             raise DocumentError(
                 f"Space '{region.space}' does not exist in page '{page_obj.oid}'."
@@ -216,15 +221,23 @@ class Document(DocObj):
             element_ids (list[str]): A list of element IDs to be deleted.
 
         Side Effects:
-            - Removes the specified elements from the `self.elements` list.
-            - Removes the corresponding nodes from `self.references` and `self.semantic_references`.
-            - Updates the `del_objs` set in the latest revision with the deleted element IDs.
+            - Removes the specified elements from the `self.elements` collection
+            - Removes the corresponding nodes from references and semantic_references
+            - Updates the `del_objs` set in the latest revision with the deleted element IDs
         """
+        # Use NormalizedObj's batch removal for better performance
+        if hasattr(self.elements, "remove_multiple"):
+            self.elements.remove_multiple(element_ids)
+        else:
+            for element_id in element_ids:
+                self.elements.remove(element_id)
+
+        # Remove references for each element
         for element_id in element_ids:
-            self.elements.remove(element_id)
             self.references.remove_node(element_id)
             self.semantic_references.remove_node(element_id)
 
+        # Batch update the revision's deletion record
         self.revisions[-1].del_objs.update(element_ids)
 
     def delete_element(self, element_id: str):
@@ -265,33 +278,59 @@ class Document(DocObj):
             return element
         return element_id_or_obj
 
-    def _element_id_to_str(self, element_id_or_obj: str | Element) -> str:
-        if isinstance(element_id_or_obj, Element):
+    def _obj_id_to_str(self, element_id_or_obj: str | Element | Page) -> str:
+        if not isinstance(element_id_or_obj, str) and hasattr(element_id_or_obj, "oid"):
             return element_id_or_obj.oid
         return element_id_or_obj
 
     def replace_element_multiple(
         self, old_id: str, new_elements: list[Element]
     ) -> None:
-        page = self.find_page_of_element(old_id)
+        page = self.find_page_of_element(old_id, False)
         self.replace_element(old_id, new_elements[0])
         for a in new_elements[1:]:
             self.add_element(
                 page, a.category, a.region, data=a.data, confidence=a.confidence
             )
 
-    def find_page_of_element(self, element: str | Element) -> str:
-        element_id = self._element_id_to_str(element)
+    @overload
+    def find_page_of_element(
+        self, element: str | Element, as_string: L[True]
+    ) -> str: ...
+
+    @overload
+    def find_page_of_element(
+        self, element: str | Element, as_string: L[False]
+    ) -> Page: ...
+
+    def find_page_of_element(
+        self, element: str | Element, as_string: bool = True
+    ) -> str | Page:
+        """
+        If an element can be found on multiple pages, only the first one found is returned. it is not necessarily the first one in the document.
+        """
+        element_id = self._obj_id_to_str(element)
         roots = list(self.references.get_roots_of(element_id))
-        if len(roots) == 1:
-            return roots[0]
+        for r in roots:
+            if r in self.pages.allIds:
+                if as_string:
+                    return r
+                else:
+                    return self.pages[r]
         raise ValueError(f"Element '{element_id}' not found in any page references.")
 
     def get_latest_elements(self) -> list[str]:
-        l = set()
+        """Get the list of element IDs from the latest revision.
+
+        Returns:
+            list[str]: List of current element IDs after applying all revisions.
+        """
+        # Use a more descriptive variable name and pre-allocate for efficiency
+        element_set = set()
+        # Process revisions in order
         for rev in self.revisions:
-            l.update(rev.adjust_objs(l))
-        return list(l)
+            element_set.update(rev.adjust_objs(element_set))
+        return list(element_set)
 
     def get_visible_elements(
         self, element_id: str | Element, direction: str, category: str | None = None
@@ -316,12 +355,12 @@ class Document(DocObj):
             ValueError: If the specified element is not found on any page.
         """
         source = self._element_id_to_object(element_id)
-        page = self.find_page_of_element(source)
+        page = self.find_page_of_element(source, False)
         if not page:
             raise ValueError(f"Element '{element_id}' not found on any page.")
 
         bbox = source.region
-        space = self.pages[page].spaces[bbox.space]
+        space = page.spaces[bbox.space]
         if not len(space.dimensions) == 2:
             raise DocumentError(
                 f"Invalid space dimensions for get_visible_elements: {space.dimensions}"
@@ -330,7 +369,7 @@ class Document(DocObj):
         axis_directions = space.axis_directions
 
         source_shape = source.region._shape
-        candidates = self.get_element_type(category or source.category, page)
+        candidates = self.get_element_type(category or source.category, page.oid)
 
         def is_visible(target):
             target_shape = target.region._shape
@@ -494,46 +533,79 @@ class Document(DocObj):
         return page.oid
 
     def get_element_type(
-        self, category: str, page: str | int = ""
+        self, category: str, page: str | int | Page = ""
     ) -> Iterable[Element]:
+        """
+        Get all elements of a specific category, optionally filtered by page.
+
+        Args:
+            category: The element category to filter by
+            page: Optional page to limit the search scope
+
+        Returns:
+            Iterable[Element]: Generator of matching elements
+        """
         return self.get_element_by(lambda x: x.category == category, page)
 
     def get_element_by(
-        self, fun: Callable[[Element], bool], page: str | int = ""
+        self, fun: Callable[[Element], bool], page: str | int | Page = ""
     ) -> Iterable[Element]:
-        p = ""
-        if isinstance(page, Page):
-            p = page.oid
-        elif page in self.pages.allIds:
-            p = page
-        elif f"page-{page}" in self.pages.allIds:
-            p = f"page-{page}"
+        """
+        Filter elements using a provided function, optionally within a page scope.
 
-        if page and not p:
-            return []
+        Args:
+            fun: Function that takes an Element and returns a boolean
+            page: Optional page identifier to limit the search scope
+
+        Returns:
+            Iterable[Element]: Generator of elements that match the filter
+        """
+        # Normalize page reference to a string id
+        page_id = ""
+        if isinstance(page, Page):
+            page_id = page.oid
+        elif page in self.pages.allIds:
+            page_id = page
+        elif isinstance(page, int) and f"page-{page}" in self.pages.allIds:
+            page_id = f"page-{page}"
+
+        # Three possible search paths with early returns for efficiency
+        if page and not page_id:
+            return []  # Invalid page reference
         elif not page:
-            return (a for a in self.elements.values() if fun(a))
+            # Search all elements (no page filter)
+            return (elem for elem in self.elements.values() if fun(elem))
         else:
+            # Search only elements within a specific page
+            descendants = self.references.get_descendants(page_id)
             return (
-                self.elements[a]
-                for a in self.references.get_descendants(p)
-                if fun(self.elements[a])
+                self.elements[elem_id]
+                for elem_id in descendants
+                if fun(self.elements[elem_id])
             )
 
     def get_img_snippets(
         self,
         elements: list[Element],
         padding: tuple[int, int] = (0, 0),
-        page: str | None = None,
+        page: Page | str | None = None,
     ) -> Generator[ArrayLike, None, None]:
-        p = self.find_page_of_element(elements[0]) if not page else page
-        if self.pages[p].img is None:
+        if not page:
+            p = self.find_page_of_element(elements[0], False)
+        elif isinstance(page, Page):
+            p = page
+        elif isinstance(page, str):
+            p = self.pages.get(page)
+            if not p:
+                raise PageNotFoundError(f"Page '{page}' does not exist.")
+
+        if p.img is None:
             raise DocumentError(f"Page {p} does not have an image")
-        img = np.array(base64_to_img(self.pages[p].img))  # type: ignore
+        img = np.array(base64_to_img(p.img))  # type: ignore
 
         for element in elements:
             bb = element.region.convert_space(
-                *self.pages[p].factor_between_spaces("xml", "img"), "img"
+                p.factor_between_spaces("xml", "img"), "img"
             )
             yield img[
                 int(bb.y1) - padding[1] : int(bb.y2) + padding[1],
@@ -550,25 +622,26 @@ class Document(DocObj):
         element = self._element_id_to_object(element_id)
         if not element:
             raise AreaNotFoundError(f"Element {element_id} does not exist")
-        p = self.find_page_of_element(element)
+        p = self.find_page_of_element(element, False)
         return self.get_img_snippet_from_bb(element.region, p, as_string, padding)
 
     def get_img_snippet_from_bb(
         self,
         bb: Region,
-        p: str,
+        p: str | Page,
         as_string: bool,
         padding: tuple[int, int] = (0, 0),
     ) -> str | Image.Image:
         if not bb:
             raise DocumentError(f"Invalid bounding box {bb}")
 
-        bb = bb.convert_space(*self.pages[p].factor_between_spaces("xml", "img"), "img")
-        img: Image.Image = (
-            base64_to_img(self.pages[p].img)
-            if isinstance(self.pages[p].img, str)
-            else self.pages[p].img
-        )
+        if not isinstance(p, Page):
+            p: Page = self.pages.get(p)
+        else:
+            p: Page = p
+
+        bb = bb.convert_space(p.factor_between_spaces("xml", "img"), "img")
+        img: Image.Image = base64_to_img(p.img) if isinstance(p.img, str) else p.img
         cropped = Image.fromarray(
             np.array(img)[
                 max(int(bb.y1) - padding[1], 0) : min(
@@ -584,18 +657,23 @@ class Document(DocObj):
 
     @overload
     def get_img_page(self, page: str, as_base64_string: L[True]) -> str: ...
-    
+
     @overload
     def get_img_page(self, page: str, as_base64_string: L[False]) -> Image.Image: ...
-    
-    def get_img_page(self, page: str, as_base64_string: bool = True) -> str | Image.Image:
+
+    def get_img_page(
+        self, page: str, as_base64_string: bool = True
+    ) -> str | Image.Image:
         p = page if page in self.pages.allIds else ""
         return (
-            (self.pages[p].img if as_base64_string else base64_to_img(self.pages[p].img))
+            (
+                self.pages[p].img
+                if as_base64_string
+                else base64_to_img(self.pages[p].img)
+            )
             if p
             else ""
         )
-
 
     def transpose_page(self, page_id: str):
         for obj in self.references.get_descendants(page_id):
@@ -656,18 +734,28 @@ class Document(DocObj):
         }
 
     def to_json(self) -> str:
-        """Serialize Document to JSON."""
+        """
+        Serialize Document to JSON.
 
+        Returns:
+            str: JSON representation of the document
+        """
+
+        # Custom encoder to properly handle numpy types, dates, and other special objects
         class NpEncoder(json.JSONEncoder):
             def default(self, o):
+                # Cache imports for better performance
                 import base64
 
+                # Handle numpy types
                 if isinstance(o, np.integer):
                     return int(o)
                 if isinstance(o, np.floating):
                     return float(o)
                 if isinstance(o, np.ndarray):
                     return o.tolist()
+
+                # Handle other special types
                 if isinstance(o, datetime.datetime):
                     return o.isoformat()
                 if isinstance(o, set):
@@ -679,8 +767,11 @@ class Document(DocObj):
                         return base64.b64encode(o).decode("utf-8")
                 if isinstance(o, Element):
                     return o.to_obj()
+
+                # Fallback to default encoder
                 return super(NpEncoder, self).default(o)
 
+        # Convert to object dictionary then serialize to JSON
         return json.dumps(self.to_obj(), cls=NpEncoder)
 
     def is_referenced_by(self, element: Element | str, element2: Element | str) -> bool:
@@ -688,21 +779,23 @@ class Document(DocObj):
         Determines if a element is referenced by another element.
 
         Args:
-            element (Element | str): The element or its identifier (oid) to check for references.
-            element2 (Element | str): The element or its identifier (oid) to check as a potential ancestor.
+            element (Element | str): The element or its identifier to check for references.
+            element2 (Element | str): The element or its identifier to check as a potential ancestor.
 
         Returns:
             bool: True if `element2` is an ancestor of `element`, False otherwise.
         """
-        r: str = self._element_id_to_str(element)
-        ancestors = self.references.get_ancestors(r)
+        # Convert to string IDs for consistency
+        element_id = self._obj_id_to_str(element)
+        ancestor_id = self._obj_id_to_str(element2)
+
+        # Get ancestors and check for presence - early return if no ancestors
+        ancestors = self.references.get_ancestors(element_id)
         if not ancestors:
             return False
-        if isinstance(element2, Element):
-            element2 = element2.oid
-        if element2 in ancestors:
-            return True
-        return False
+
+        # Direct check for presence in ancestors
+        return ancestor_id in ancestors
 
     """
     Semantics
@@ -742,19 +835,32 @@ class Document(DocObj):
         self, element_id: str, literal: Literal | str
     ) -> None:
         """
-        Annotate an element with a literal. The ReferenceGraph stores only strings,
-        so convert Literal instances into their lexical form "value^^datatype".
+        Annotate an element with a literal value.
+
+        The ReferenceGraph stores only strings, so Literal instances are
+        converted into their lexical form "value^^datatype".
+
+        Args:
+            element_id: The ID of the element to annotate
+            literal: The literal value (string or Literal object)
+
+        Raises:
+            KeyError: If the element doesn't exist
+            TypeError: If literal is not of the expected type
         """
+        # Validate element existence
         self._assert_element_exists(element_id)
 
-        # If caller passed a raw string, wrap into a default‐typed Literal
+        # Convert string to default-typed Literal if needed
         if isinstance(literal, str):
             literal = Literal(literal)
-
-        if not isinstance(literal, Literal):
+        elif not isinstance(literal, Literal):
             raise TypeError(f"Expected Literal or str, got {type(literal).__name__}")
 
-        lexical = str(literal)  # e.g. '"foo"^^xsd:string' or '42^^xsd:integer'
+        # Convert to lexical form (e.g., '"foo"^^xsd:string' or '42^^xsd:integer')
+        lexical = str(literal)
+
+        # Add the reference
         self.semantic_references.add_reference(element_id, lexical)
 
     # def get_elements_by_entity(self, entity: SemanticEntity) -> list[Element]:

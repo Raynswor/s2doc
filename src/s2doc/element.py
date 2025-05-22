@@ -43,9 +43,7 @@ class Element(DocObj):
     ):
         # check if the other element is of the same type
         if self.category != other.category:
-            raise IncompatibleError(
-                "type", self.category, other.category
-            )
+            raise IncompatibleError("type", self.category, other.category)
 
         self.region = self.region.union(other.region)
         if merge_data:
