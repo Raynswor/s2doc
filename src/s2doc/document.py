@@ -533,7 +533,7 @@ class Document(DocObj):
         return page.oid
 
     def get_element_type(
-        self, category: str, page: str | int | Page = ""
+        self, category: str | list[str], page: str | int | Page = ""
     ) -> Iterable[Element]:
         """
         Get all elements of a specific category, optionally filtered by page.
@@ -545,6 +545,8 @@ class Document(DocObj):
         Returns:
             Iterable[Element]: Generator of matching elements
         """
+        if isinstance(category, list):
+            return self.get_element_by(lambda x: x.category in category, page)
         return self.get_element_by(lambda x: x.category == category, page)
 
     def get_element_by(
