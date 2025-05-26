@@ -3,8 +3,8 @@ from .document import Document
 from .drawer import Drawer
 from .element import Element, Table
 from .font import Font
-from .geometry import RectangleRegion, Region, SpanRegion, LineRegion, PolygonRegion
-from .group import GroupedAreas
+from .geometry import LineRegion, PolygonRegion, RectangleRegion, Region, SpanRegion
+from .group import GroupedElements
 from .normalizedObject import NormalizedObj
 from .page import Page
 from .pageLayout import PageLayout, TypographicLayout
@@ -29,7 +29,7 @@ __all__ = [
     "PageLayout",
     "TypographicLayout",
     "Revision",
-    "GroupedAreas",
+    "GroupedElements",
     "SemanticKnowledgeGraph",
     "SemanticEntity",
     "SemanticType",

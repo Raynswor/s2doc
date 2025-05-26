@@ -23,20 +23,24 @@ class Page(DocObj):
         img: str | None = None,
         spaces: dict[str, Space] | None = None,
         layout: PageLayout | None = None,
+        metadata: dict[str, str] | None = None,
     ):
         self.oid: str = oid
         self.number: int = number
         self.img: str | None = img
         self.spaces: dict[str, Space] = spaces or {
-            "xml": Space(label="xml", dimensions=[0.0, 0.0], axis_directions=[True, False]),
-            "img": Space(label="img", dimensions=[0.0, 0.0], axis_directions=[True, False]),
+            "xml": Space(
+                label="xml", dimensions=[0.0, 0.0], axis_directions=[True, False]
+            ),
+            "img": Space(
+                label="img", dimensions=[0.0, 0.0], axis_directions=[True, False]
+            ),
         }
         self.layout: PageLayout = layout or PageLayout()
         self._cache_space_conversion: dict[tuple[str, str], list[float]] = {}
+        self.metadata: dict[str, str] = metadata or {}
 
-    def factor_between_spaces(
-        self, from_space: str, to_space: str
-    ) -> list[float]:
+    def factor_between_spaces(self, from_space: str, to_space: str) -> list[float]:
         key = (from_space, to_space)
         if key in self._cache_space_conversion:
             return self._cache_space_conversion[key]
@@ -96,7 +100,9 @@ class Page(DocObj):
 
     @classmethod
     def from_dict(cls, d: dict) -> "Page":
-        layout = PageLayout.from_dict(d["layout"]) if "layout" in d and d["layout"] else None
+        layout = (
+            PageLayout.from_dict(d["layout"]) if "layout" in d and d["layout"] else None
+        )
 
         if "xml_width" in d:
             dimensions = {
@@ -112,9 +118,7 @@ class Page(DocObj):
                 ),
             }
         else:
-            dimensions = {
-                k: Space.from_dict(v) for k, v in d["spaces"].items()
-            }
+            dimensions = {k: Space.from_dict(v) for k, v in d["spaces"].items()}
 
         try:
             return cls(
@@ -123,6 +127,7 @@ class Page(DocObj):
                 img=d["img"],
                 spaces=dimensions,
                 layout=layout,
+                metadata=d.get("metadata", {}),
             )
         except Exception as e:
             raise LoadFromDictError(cls.__name__, str(e))
@@ -134,4 +139,5 @@ class Page(DocObj):
             "img": self.img,
             "spaces": {k: v.to_obj() for k, v in self.spaces.items()},
             "layout": self.layout.to_obj(),
+            "metadata": self.metadata,
         }
