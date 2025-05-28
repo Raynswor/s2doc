@@ -100,7 +100,7 @@ class Table(Element):
         confidence: float | None = None,
     ):
         # Ensure that data contains the "cells" key.
-        super().__init__(oid, "Table", boundingBox, data, confidence)
+        super().__init__(oid, "table", boundingBox, data, confidence)
         if data is not None and "cells" in data:
             (
                 self.cell_nodes,

@@ -614,6 +614,22 @@ class Document(DocObj):
                 int(bb.x1) - padding[0] : int(bb.x2) + padding[0],
                 :,
             ]
+    
+    @overload
+    def get_img_snippet(
+        self,
+        element_id: str | Element,
+        as_string: L[False],
+        padding: tuple[int, int] = (0, 0)
+    ) -> Image.Image: ...
+
+    @overload
+    def get_img_snippet(
+        self,
+        element_id: str | Element,
+        as_string: L[True],
+        padding: tuple[int, int] = (0, 0)
+    ) -> str: ...
 
     def get_img_snippet(
         self,
