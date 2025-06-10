@@ -79,7 +79,7 @@ class Element(DocObj):
             raise LoadFromDictError(cls.__name__, str(e))
 
     def to_obj(self) -> dict:
-        dic = {
+        dic: dict[str, Any] = {
             "oid": self.oid,
             "c": self.category,
             "r": self.region.to_obj(),
