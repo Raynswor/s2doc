@@ -107,7 +107,11 @@ class NormalizedObj(Generic[T]):
         if obj_cls is None:
             raise LoadFromDictError(what, "Unknown object type")
 
-        flat_dic = flatten_compressed_trie(dic)
+        # check if it is trie - first element should not contain oid
+        if "oid" not in next(iter(dic.values())).keys():
+            flat_dic = flatten_compressed_trie(dic)
+        else:
+            flat_dic = dic
 
         def rec_obj_creation(part: dict, obj_cls) -> dict[str, T]:
             return (
@@ -120,12 +124,13 @@ class NormalizedObj(Generic[T]):
         except Exception as e:
             raise LoadFromDictError(what, str(e))
 
-    def to_obj(self) -> dict:
+    def to_obj(self, as_trie: bool = False) -> dict:
         def get_child(key):
             return (
                 self.byId[key].to_obj()
                 if hasattr(self.byId[key], "to_obj")
                 else self.byId[key]
             )
-
-        return build_compressed_trie(self.byId, get_child)
+        if as_trie:
+            return build_compressed_trie(self.byId, get_child)
+        return {k: get_child(k) for k in self.byId}

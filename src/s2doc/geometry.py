@@ -94,9 +94,11 @@ class Region(ABC):
         match d[0]:
             case "s":
                 return SpanRegion.from_dict(d[1:])
-            case "pr":
+            case "rr":
                 return RectangleRegion.from_dict(d[1:])
-            case "l":
+            case "pr":
+                return PolygonRegion.from_dict(d[1:])
+            case "lr":
                 return LineRegion.from_dict(d[1:])
             case "pl":
                 return PolylineRegion.from_dict(d[1:])
@@ -197,7 +199,7 @@ class RectangleRegion(Region):
         return self.width > self.height
 
     def to_obj(self) -> list:
-        return ["pr", self.x1, self.y1, self.x2, self.y2, self.space]
+        return ["rr", self.x1, self.y1, self.x2, self.y2, self.space]
 
     def get_points(self) -> list[tuple[float, float]]:
         return [(self.x1, self.y1), (self.x2, self.y2)]
@@ -301,7 +303,7 @@ class LineRegion(Region):
         self.y2 = y2
 
     def to_obj(self) -> list:
-        return ["l", self.x1, self.y1, self.x2, self.y2, self.space]
+        return ["lr", self.x1, self.y1, self.x2, self.y2, self.space]
 
     def get_points(self) -> list[tuple[float, float]]:
         return [(self.x1, self.y1), (self.x2, self.y2)]
