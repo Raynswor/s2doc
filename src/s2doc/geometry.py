@@ -301,6 +301,14 @@ class LineRegion(Region):
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
+    
+    @property
+    def width(self) -> float:
+        return abs(self.x2 - self.x1)
+    
+    @property
+    def height(self) -> float:
+        return abs(self.y2 - self.y1)
 
     def to_obj(self) -> list:
         return ["lr", self.x1, self.y1, self.x2, self.y2, self.space]
