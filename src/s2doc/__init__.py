@@ -1,6 +1,9 @@
 from .base import DocObj
 from .document import Document
-from .drawer import Drawer
+try:
+    from .drawer import Drawer
+except (ModuleNotFoundError, ImportError):
+    pass
 from .element import Element, Table
 from .font import Font
 from .geometry import LineRegion, PolygonRegion, RectangleRegion, Region, SpanRegion
@@ -35,5 +38,4 @@ __all__ = [
     "SemanticType",
     "Space",
     "ReferenceGraph",
-    "Drawer",
 ]

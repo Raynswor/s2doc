@@ -48,9 +48,7 @@ class Drawer:
         # Convert to NetworkX graph(s)
         self.nx_graph, self.semantic_graph = self._convert_to_networkx(self.drawing_obj)
 
-    def _convert_to_networkx(
-        self, drawing_obj
-    ) -> tuple[nx.DiGraph, nx.DiGraph | None]:
+    def _convert_to_networkx(self, drawing_obj) -> tuple[nx.DiGraph, nx.DiGraph | None]:
         """
         Convert the graph to a NetworkX directed graph.
 
@@ -207,7 +205,7 @@ class Drawer:
             return
 
         handles = [
-            plt.Line2D( # type: ignore
+            plt.Line2D(  # type: ignore
                 [0],
                 [0],
                 marker="o",
