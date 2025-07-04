@@ -367,3 +367,78 @@ class Table(Element):
                 )
 
         return graph
+
+    def to_html(self, doc) -> str:
+        """
+        Converts the table's cell matrix to an HTML table structure.
+
+        Uses the computed cell groups to properly handle merged cells with
+        rowspan and colspan attributes.
+
+        Returns:
+            str: HTML table string with proper structure
+        """
+        if not self.cells or self.n_rows == 0 or self.n_cols == 0:
+            return "<table></table>"
+
+        html_parts = ["<table>"]
+
+        # Track which cells have already been rendered (for merged cells)
+        rendered_positions: set[tuple[int, int]] = set()
+
+        for row_idx in range(self.n_rows):
+            html_parts.append("  <tr>")
+
+            for col_idx in range(self.n_cols):
+                # Skip if this position is part of a merged cell already rendered
+                if (row_idx, col_idx) in rendered_positions:
+                    continue
+
+                # Get the cell at this position
+                cell_info = self.get_cell_at(row_idx, col_idx)
+
+                if not cell_info:
+                    # Empty cell
+                    html_parts.append("    <td></td>")
+                    rendered_positions.add((row_idx, col_idx))
+                else:
+                    # Get cell dimensions for rowspan/colspan
+                    grid = cell_info["grid"]
+                    rowspan = grid["bottom"] - grid["top"] + 1
+                    colspan = grid["right"] - grid["left"] + 1
+
+                    # Build the cell tag with appropriate attributes
+                    cell_tag = "    <td"
+                    if rowspan > 1:
+                        cell_tag += f' rowspan="{rowspan}"'
+                    if colspan > 1:
+                        cell_tag += f' colspan="{colspan}"'
+                    cell_tag += ">"
+
+                    # Add cell content (handle different value types)
+                    cell_value = "".join(doc.get_element_data_value(cell_info.get("value", "")))
+                    if isinstance(cell_value, str):
+                        cell_content = cell_value
+                    else:
+                        cell_content = str(cell_value) if cell_value is not None else ""
+
+                    # Escape HTML special characters in cell content
+                    cell_content = (
+                        cell_content.replace("&", "&amp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                        .replace('"', "&quot;")
+                        .replace("'", "&#x27;")
+                    )
+
+                    html_parts.append(f"{cell_tag}{cell_content}</td>")
+
+                    # Mark all positions covered by this merged cell as rendered
+                    for r in range(grid["top"], grid["bottom"] + 1):
+                        for c in range(grid["left"], grid["right"] + 1):
+                            rendered_positions.add((r, c))
+
+            html_parts.append("  </tr>")
+
+        html_parts.append("</table>")
+        return "\n".join(html_parts)
