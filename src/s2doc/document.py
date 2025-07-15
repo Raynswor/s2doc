@@ -96,13 +96,13 @@ class Document(DocObj):
             return uuid_cache.pop()
 
         def generate_long_id(page, category):
-            return f"{self.oid}-{self.pages[page].number}-{category}-{get_uuid()}"
+            return f"{self.oid}-{self.pages[page].number}-{category.lower()}-{get_uuid()}"
 
         variants = {
             "uuid": lambda page, category: get_uuid(),
             "document": lambda page, category: f"{self.oid}-{get_uuid()}",
             "page": lambda page, category: f"{self.pages[page].number}-{get_uuid()}",
-            "category": lambda page, category: f"{category}-{get_uuid()}",
+            "category": lambda page, category: f"{category.lower()}-{get_uuid()}",
             "long": generate_long_id,
         }
 
@@ -184,6 +184,8 @@ class Document(DocObj):
             # raise DocumentError(
             #     f"Region '{region}' is out of bounds for space '{region.space}' in page '{page_obj.oid}'."
             # )
+        
+        category = category.lower()
 
         while not element_id or element_id in self.elements:
             element_id = self.id_generation_variant(page_obj.oid, category)
@@ -266,7 +268,7 @@ class Document(DocObj):
         self.revisions[-1].del_objs.add(element_id)
 
     def replace_element(self, old_id: str, new_element: Element) -> None:
-        assert self.elements.byId[old_id].category == new_element.category
+        assert self.elements.byId[old_id].category == new_element.category.lower()
         self.elements.byId[new_element.oid] = new_element
         self.elements.remove(old_id)
 
@@ -469,7 +471,7 @@ class Document(DocObj):
         return [
             element
             for element_id in self.references.get_descendants(page)
-            if (element := self.elements[element_id]).category == category
+            if (element := self.elements[element_id]).category == category.lower()
             and element.region.x1 <= x <= element.region.x2
             and element.region.y1 <= y <= element.region.y2
         ]
@@ -487,12 +489,21 @@ class Document(DocObj):
 
         g = element.data.get(val, None)
         if not g:
-            refs = self.references.get_descendants(element.oid)
+            refs = self.references.get_children(element.oid)
             if refs:
+                # Sort children by their spatial position (top-to-bottom, left-to-right)
+                child_elements = []
+                for ref in refs:
+                    child_element = self.elements.get(ref)
+                    if child_element:
+                        child_elements.append((ref, child_element))
+
+                child_elements.sort(key=lambda x: (x[1].region.bounds[1], x[1].region.bounds[0]))
+
                 return [
-                    t
-                    for ref in refs
-                    if (t := self.elements[ref].data.get(val, None)) is not None
+                    " ".join(t)
+                    for ref, _ in child_elements
+                    if (t := self.get_element_data_value(ref, val)) is not None
                 ]
         return [g] if g else []
 
@@ -550,8 +561,9 @@ class Document(DocObj):
             Iterable[Element]: Generator of matching elements
         """
         if isinstance(category, list):
+            category = [cat.lower() for cat in category]
             return self.get_element_by(lambda x: x.category in category, page)
-        return self.get_element_by(lambda x: x.category == category, page)
+        return self.get_element_by(lambda x: x.category == category.lower(), page)
 
     def get_element_by(
         self, fun: Callable[[Element], bool], page: str | int | Page = ""
@@ -618,13 +630,13 @@ class Document(DocObj):
                 int(bb.x1) - padding[0] : int(bb.x2) + padding[0],
                 :,
             ]
-    
+
     @overload
     def get_img_snippet(
         self,
         element_id: str | Element,
         as_string: L[False],
-        padding: tuple[int, int] = (0, 0)
+        padding: tuple[int, int] = (0, 0),
     ) -> Image.Image: ...
 
     @overload
@@ -632,7 +644,7 @@ class Document(DocObj):
         self,
         element_id: str | Element,
         as_string: L[True],
-        padding: tuple[int, int] = (0, 0)
+        padding: tuple[int, int] = (0, 0),
     ) -> str: ...
 
     def get_img_snippet(
