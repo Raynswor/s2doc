@@ -416,7 +416,9 @@ class Table(Element):
                     cell_tag += ">"
 
                     # Add cell content (handle different value types)
-                    cell_value = "".join(doc.get_element_data_value(cell_info.get("value", "")))
+                    cell_value = "".join(
+                        doc.get_element_data_value(cell_info.get("value", ""))
+                    )
                     if isinstance(cell_value, str):
                         cell_content = cell_value
                     else:
@@ -442,3 +444,94 @@ class Table(Element):
 
         html_parts.append("</table>")
         return "\n".join(html_parts)
+
+    def to_markdown(self, doc) -> str:
+        """
+        Converts the table's cell matrix to a Markdown table structure.
+
+        Uses the computed cell groups to properly handle merged cells.
+        Note: Markdown doesn't support rowspan/colspan, so merged cells
+        will be represented by repeating content or using placeholders.
+
+        Returns:
+            str: Markdown table string
+        """
+        if not self.cells or self.n_rows == 0 or self.n_cols == 0:
+            return ""
+
+        markdown_parts = []
+
+        # Track which cells have already been rendered (for merged cells)
+        rendered_positions: set[tuple[int, int]] = set()
+
+        # Store the actual table data for markdown generation
+        table_data: list[list[str]] = []
+
+        for row_idx in range(self.n_rows):
+            row_data = []
+
+            for col_idx in range(self.n_cols):
+                # Get the cell at this position
+                cell_info = self.get_cell_at(row_idx, col_idx)
+
+                if not cell_info:
+                    # Empty cell
+                    row_data.append("")
+                else:
+                    # Add cell content (handle different value types)
+                    cell_value = "".join(
+                        doc.get_element_data_value(cell_info.get("value", ""))
+                    )
+                    if isinstance(cell_value, str):
+                        cell_content = cell_value
+                    else:
+                        cell_content = str(cell_value) if cell_value is not None else ""
+
+                    # Escape markdown special characters in cell content
+                    cell_content = (
+                        cell_content.replace("|", "\\|")
+                        .replace("\n", " ")
+                        .replace("\r", " ")
+                        .strip()
+                    )
+
+                    # For merged cells, we'll use the content in the first occurrence
+                    # and empty strings for subsequent positions
+                    grid = cell_info["grid"]
+                    if row_idx == grid["top"] and col_idx == grid["left"]:
+                        # This is the top-left position of a merged cell
+                        row_data.append(cell_content)
+
+                        # Mark all positions covered by this merged cell as rendered
+                        for r in range(grid["top"], grid["bottom"] + 1):
+                            for c in range(grid["left"], grid["right"] + 1):
+                                if (
+                                    r != row_idx or c != col_idx
+                                ):  # Skip the current position
+                                    rendered_positions.add((r, c))
+                    elif (row_idx, col_idx) in rendered_positions:
+                        # This position is part of a merged cell, use placeholder
+                        row_data.append("^")  # Indicates merged cell continuation
+                    else:
+                        row_data.append(cell_content)
+
+            table_data.append(row_data)
+
+        # Generate markdown table
+        if not table_data:
+            return ""
+
+        # Create the header row (first row of data)
+        header = "| " + " | ".join(table_data[0]) + " |"
+        markdown_parts.append(header)
+
+        # Create the separator row
+        separator = "| " + " | ".join(["---"] * self.n_cols) + " |"
+        markdown_parts.append(separator)
+
+        # Add the remaining data rows
+        for row_data in table_data[1:]:
+            row = "| " + " | ".join(row_data) + " |"
+            markdown_parts.append(row)
+
+        return "\n".join(markdown_parts)

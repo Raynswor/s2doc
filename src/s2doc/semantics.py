@@ -136,7 +136,7 @@ class SemanticEntity:
         if self.flags:
             ret["flags"] = self.flags
         if self.literals:
-            ret["literals"] = {k: v.to_obj() for k, v in self.literals.items()}
+            ret["literals"] = {k: v.to_obj() if not isinstance(v, dict) else v for k, v in self.literals.items()}
         return ret
 
     def __eq__(self, other: object) -> bool:
