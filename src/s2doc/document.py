@@ -172,15 +172,15 @@ class Document(DocObj):
             )
         # see if region is within the space dimensions TODO: currently only 2D space and RectangleRegion
         if not (
-            0 <= region.x1 <= space.dimensions[0]
-            and 0 <= region.x2 <= space.dimensions[0]
-            and 0 <= region.y1 <= space.dimensions[1]
-            and 0 <= region.y2 <= space.dimensions[1]
+            0 <= region.bounds[0] <= space.dimensions[0]
+            and 0 <= region.bounds[2] <= space.dimensions[0]
+            and 0 <= region.bounds[1] <= space.dimensions[1]
+            and 0 <= region.bounds[3] <= space.dimensions[1]
         ):
             logging.warning(
                 f"Region {region} is out of bounds for space '{region.space}' in page '{page_obj.oid}'."
             )
-            return
+            return ""
             # raise DocumentError(
             #     f"Region '{region}' is out of bounds for space '{region.space}' in page '{page_obj.oid}'."
             # )

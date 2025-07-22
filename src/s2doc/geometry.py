@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from shapely import LineString, Polygon
+from shapely import LineString, MultiPolygon, Polygon
 
 from .errors import IncompatibleError, LoadFromDictError
 from typing import Self
@@ -40,6 +40,7 @@ class Region(ABC):
 
     @check_space
     def intersects(self, other: "Region") -> bool:
+        """Intersects implies that overlaps, touches, covers, or within are True."""
         return self._shape.intersects(other._shape)
 
     @check_space
@@ -51,6 +52,13 @@ class Region(ABC):
             return SpanRegion(
                 int(union_shape.bounds[0]), int(union_shape.bounds[2]), self._space
             )
+        elif isinstance(union_shape, MultiPolygon):
+            return PolygonRegion([
+                (union_shape.bounds[0],union_shape.bounds[1]),
+                (union_shape.bounds[0],union_shape.bounds[3]),
+                (union_shape.bounds[2],union_shape.bounds[3]),
+                (union_shape.bounds[2],union_shape.bounds[1])
+            ], self._space)
         else:
             raise ValueError("Union resulted in an unsupported geometry type")
 
@@ -258,8 +266,8 @@ class PolygonRegion(Region):
 
     @classmethod
     def from_dict(cls, d: list) -> "PolygonRegion":
-        if len(d) != 3:
-            raise LoadFromDictError(cls.__name__, "Incorrect number of parameters")
+        if len(d) != 2:
+            raise LoadFromDictError(cls.__name__, f"Incorrect number of parameters: expected 3, got {len(d)}")
         return cls(d[0], d[1])
 
     def convert_space(self, factors: list[float], space: str) -> "PolygonRegion":
