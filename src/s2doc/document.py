@@ -45,7 +45,7 @@ class Document(DocObj):
         semantic_network: SemanticKnowledgeGraph | None = None,
         semantic_references: ReferenceGraph | None = None,
         metadata: dict[str, Any] | None = None,
-        raw_pdf: bytes | None = None,
+        raw_data: bytes | None = None,
     ):
         self.oid: str = oid
         self.pages: NormalizedObj[Page] = pages or NormalizedObj[Page]()
@@ -77,7 +77,7 @@ class Document(DocObj):
         )
 
         self.metadata: dict[str, Any] = metadata or {}
-        self.raw_pdf: bytes | None = raw_pdf
+        self.raw_data: bytes | None = raw_data
 
         # Cache the ID generation function
         self.id_generation_variant: Callable[..., str] = self._generate_element_id(
@@ -96,7 +96,9 @@ class Document(DocObj):
             return uuid_cache.pop()
 
         def generate_long_id(page, category):
-            return f"{self.oid}-{self.pages[page].number}-{category.lower()}-{get_uuid()}"
+            return (
+                f"{self.oid}-{self.pages[page].number}-{category.lower()}-{get_uuid()}"
+            )
 
         variants = {
             "uuid": lambda page, category: get_uuid(),
@@ -184,7 +186,7 @@ class Document(DocObj):
             # raise DocumentError(
             #     f"Region '{region}' is out of bounds for space '{region.space}' in page '{page_obj.oid}'."
             # )
-        
+
         category = category.lower()
 
         while not element_id or element_id in self.elements:
@@ -498,7 +500,9 @@ class Document(DocObj):
                     if child_element:
                         child_elements.append((ref, child_element))
 
-                child_elements.sort(key=lambda x: (x[1].region.bounds[1], x[1].region.bounds[0]))
+                child_elements.sort(
+                    key=lambda x: (x[1].region.bounds[1], x[1].region.bounds[0])
+                )
 
                 return [
                     " ".join(t)
@@ -739,7 +743,7 @@ class Document(DocObj):
                 if d.get("fonts")
                 else [],
                 metadata=d.get("metadata", {}),
-                raw_pdf=d.get("raw_pdf"),
+                raw_data=d.get("raw_data"),
                 semantic_network=SemanticKnowledgeGraph.from_dict(
                     d["semantic_network"]
                 ),
@@ -762,7 +766,7 @@ class Document(DocObj):
             "revisions": [x.to_obj() for x in self.revisions],
             "fonts": [x.to_obj() for x in self.fonts],
             "metadata": self.metadata,
-            "raw_pdf": self.raw_pdf,
+            "raw_data": self.raw_data,
             "semantic_network": self.semantic_network.to_obj(),
             "semantic_references": self.semantic_references.to_obj(),
         }
