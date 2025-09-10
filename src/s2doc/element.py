@@ -110,6 +110,7 @@ class Table(Element):
                 self.n_cols,
             ) = self._compute_cell_groups()
         else:
+            self.data["cells"] = []
             self.cell_nodes = {}
             self.coord_to_group = {}
             self.group_to_node = {}
