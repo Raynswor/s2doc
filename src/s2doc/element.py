@@ -275,6 +275,21 @@ class Table(Element):
         node_id = self.group_to_node[group_index]
         return self.cell_nodes[node_id]
 
+    def get_rows_cols_of_cell(self, cell_id: str) -> list[tuple[int, int]]:
+        """
+        Returns all grid positions (row, col) covered by the given cell id.
+        """
+        positions: list[tuple[int, int]] = []
+        for r in range(self.n_rows):
+            for c in range(self.n_cols):
+                if isinstance(self.cells[r][c], str) and self.cells[r][c] == cell_id:
+                    positions.append((r, c))
+                elif isinstance(self.cells[r][c], dict) and self.cells[r][c].get("oid") == cell_id:
+                    positions.append((r, c))
+                elif isinstance(self.cells[r][c], dict) and self.cells[r][c].get("oid") == cell_id:
+                    positions.append((r, c))
+        return positions
+
     def cells_to_graph(self) -> dict[str, Any]:
         """
         Converts the 2D cell array into a structure graph.
