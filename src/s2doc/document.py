@@ -124,6 +124,7 @@ class Document(DocObj):
         references: list[str] | None = None,
         confidence: float | None = None,
         convert_to_xml: bool = False,
+        create_content_from_children: bool = False,
     ) -> str:
         """
         Adds a element to the document.
@@ -141,6 +142,8 @@ class Document(DocObj):
                 Defaults to None.
             confidence (float | None, optional): Confidence score for the element. Defaults to None.
             convert_to_xml (bool, optional): Whether to convert the bounding box to XML space.
+                Defaults to False.
+            create_content_from_children (bool, optional): Whether to create content from child elements.
                 Defaults to False.
 
         Returns:
@@ -218,6 +221,9 @@ class Document(DocObj):
             else:
                 for r in references:
                     self.references.add_reference(element_id, r)
+
+        if create_content_from_children:
+            ar.data["content"] = " ".join(self.get_element_data_value(element_id, "content"))
 
         return element_id
 

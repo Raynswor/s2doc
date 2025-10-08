@@ -15,7 +15,7 @@ class TableCell(Element):
         confidence: float | None = None,
     ):
         super().__init__(oid, "table_cell", boundingBox, data, confidence)
-    
+
     def is_label(self) -> bool:
         """Returns True if the cell is marked as a header (row or column)."""
         return self.row_label or self.column_label
@@ -28,7 +28,7 @@ class TableCell(Element):
     def is_projected_row_label(self) -> bool:
         """Returns True if the cell is marked as a projected row label."""
         return self.data.get("projected_row_label", False)
-    
+
     @property
     def row_label(self) -> bool:
         return self.data.get("row_label", False)
@@ -36,15 +36,15 @@ class TableCell(Element):
     @property
     def projected_row_label(self) -> bool:
         return self.data.get("pr_row_label", False)
-    
+
     @property
     def column_label(self) -> bool:
         return self.data.get("column_label", False)
-    
+
     @property
     def content(self) -> str:
         return self.data.get("content", "")
-    
+
     @row_label.setter
     def row_label(self, value: bool):
         if not isinstance(value, bool):
@@ -56,7 +56,7 @@ class TableCell(Element):
         if not isinstance(value, bool):
             raise ValueError("column_label must be a boolean")
         self.data["column_label"] = value
-    
+
     @projected_row_label.setter
     def projected_row_label(self, value: bool):
         if not isinstance(value, bool):
@@ -82,7 +82,10 @@ class TableCell(Element):
     @classmethod
     def from_element(cls, element: Element) -> "TableCell":
         return cls(element.oid, element.region, element.data, element.confidence)
-    
+
+    def to_obj(self) -> dict:
+        return super().to_obj()
+
 
 class TableTuple:
     def __init__(
@@ -167,8 +170,12 @@ class Table(Element):
             for cell in row:
                 if cell is None:
                     row_copy.append(None)
+                elif isinstance(cell, str):
+                    row_copy.append(cell)
+                elif isinstance(cell, dict):
+                    row_copy.append(cell.get("oid", ""))
                 else:
-                    row_copy.append(cell.oid if isinstance(cell, Element) else cell)
+                    row_copy.append(cell.oid)
             cells_copy.append(row_copy)
         di = super().to_obj()
         di["cells"] = cells_copy
@@ -199,7 +206,7 @@ class Table(Element):
     @property
     def semantic_model(self) -> Iterable[TableTuple]:
         return self.data.get("semantic", [])
-    
+
     @semantic_model.setter
     def semantic_model(self, value: Iterable[TableTuple] | Iterable[dict]):
         if all(isinstance(v, TableTuple) for v in value):
@@ -208,7 +215,7 @@ class Table(Element):
             self.data["semantic"] = list(value)  # type: ignore
         else:
             raise ValueError("semantic_model must be Iterable[TableTuple] or Iterable[dict]")
-    
+
     ## Logical Model (Grid)
     @property
     def cells(self) -> list[list[str]]:
@@ -275,7 +282,7 @@ class Table(Element):
                                     ccc
                                 ] == cell_value:
                                     stack.append((rrr, ccc))
-                groups.append((cell_value, group_coords))
+                groups.append((cell_value.oid, group_coords))
                 for pos in group_coords:
                     coord_to_group[pos] = len(groups) - 1
 
@@ -286,6 +293,9 @@ class Table(Element):
         # [TODO] Bug?
 
         for i, (node_id, coords) in enumerate(groups):
+
+            node_id = node_id if isinstance(node_id, str) else node_id.oid
+
             top = min(r for r, _ in coords)
             left = min(c for _, c in coords)
             bottom = max(r for r, _ in coords)
