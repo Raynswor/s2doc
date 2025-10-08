@@ -1,5 +1,3 @@
-from collections.abc import Set
-
 from .base import DocObj
 from .errors import LoadFromDictError
 
@@ -8,18 +6,18 @@ class Revision(DocObj):
     def __init__(
         self,
         timestamp: str,
-        objects: Set[str] | None = None,
+        objects: set[str] | None = None,
         comment: str = "",
-        del_objs: Set[str] | None = None,
+        del_objs: set[str] | None = None,
         reference_revoked: bool = False,
     ):
         self.timestamp: str = timestamp
-        self.objects: Set[str] = set(objects) if objects else set()
+        self.objects: set[str] = set(objects) if objects else set()
         self.comment: str = comment
-        self.del_objs: Set[str] = set(del_objs) if del_objs else set()
+        self.del_objs: set[str] = set(del_objs) if del_objs else set()
         self.reference_revoked: bool = reference_revoked
 
-    def adjust_objs(self, other: Set[str]) -> Set[str]:
+    def adjust_objs(self, other: set[str]) -> set[str]:
         return set(self.objects) | other - set(self.del_objs)
 
     @classmethod

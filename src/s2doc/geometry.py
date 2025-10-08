@@ -42,6 +42,16 @@ class Region(ABC):
     def intersects(self, other: "Region") -> bool:
         """Intersects implies that overlaps, touches, covers, or within are True."""
         return self._shape.intersects(other._shape)
+    
+    def rectify(self) -> "RectangleRegion":
+        """Get the minimal bounding rectangle of the region."""
+        if isinstance(self, RectangleRegion):
+            return self
+        return RectangleRegion(*self._shape.bounds, self._space)
+    
+    @abstractmethod
+    def transpose(self) -> "Region":
+        raise NotImplementedError("Transpose not implemented for this region type")
 
     @check_space
     def union(self, other: "Region") -> "Region":
@@ -151,6 +161,9 @@ class SpanRegion(Region):
             return self
         else:
             raise IncompatibleError("space", self.space, space)
+    
+    def transpose(self) -> "SpanRegion":
+        return SpanRegion(self.end, self.start, self.space)
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, SpanRegion):
@@ -228,6 +241,9 @@ class RectangleRegion(Region):
             y2=self.y2 * factors[1],
             space=space,
         )
+    
+    def transpose(self) -> "RectangleRegion":
+        return RectangleRegion(self.y1, self.x1, self.y2, self.x2, self.space)
 
     def __eq__(self, value: object) -> bool:
         if (
@@ -276,6 +292,12 @@ class PolygonRegion(Region):
         return PolygonRegion(
             points=[(x * factors[0], y * factors[1]) for x, y in self.points],
             space=space,
+        )
+    
+    def transpose(self) -> "PolygonRegion":
+        return PolygonRegion(
+            points=[(y, x) for x, y in self.points],
+            space=self.space,
         )
 
     def __eq__(self, value: object) -> bool:
@@ -340,6 +362,9 @@ class LineRegion(Region):
             y2=self.y2 * factors[1],
             space=space,
         )
+    
+    def transpose(self) -> "LineRegion":
+        return LineRegion(self.y1, self.x1, self.y2, self.x2, self.space)
 
     def __eq__(self, value: object) -> bool:
         if (
@@ -388,6 +413,12 @@ class PolylineRegion(Region):
         return PolylineRegion(
             points=[(x * factors[0], y * factors[1]) for x, y in self.points],
             space=space,
+        )
+    
+    def transpose(self) -> "PolylineRegion":
+        return PolylineRegion(
+            points=[(y, x) for x, y in self.points],
+            space=self.space,
         )
 
     def __eq__(self, value: object) -> bool:

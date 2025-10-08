@@ -1,8 +1,8 @@
 import re
 
 import pytest
-
-from src.s2doc.element import Element, Table
+from src.s2doc.element import Element
+from src.s2doc.table import Table
 from src.s2doc.errors import IncompatibleError
 from src.s2doc.geometry import RectangleRegion
 
@@ -26,7 +26,7 @@ def test_element_create():
 
     table = Element.create("t1", "table", region)
     assert isinstance(table, Table)
-    assert table.category == "Table"
+    assert table.category == "table"
 
 
 def test_element_merge():

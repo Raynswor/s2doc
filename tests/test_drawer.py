@@ -1,5 +1,4 @@
 import pytest
-
 from src.s2doc import (
     Document,
     Drawer,
@@ -37,7 +36,7 @@ def sample_document():
         )
     )
     document.add_element(
-        page, "Table", region=RectangleRegion(0, 0, 0, 0, "img"), element_id="Table1"
+        page, "table", region=RectangleRegion(0, 0, 0, 0, "img"), element_id="Table1"
     )
     document.add_element(
         page,

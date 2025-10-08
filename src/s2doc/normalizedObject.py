@@ -93,7 +93,7 @@ class NormalizedObj(Generic[T]):
             del self.byId[oid]
         self._sync_ids()
 
-    def remove_multiple(self, objs: list[T | str]) -> None:
+    def remove_multiple(self, objs: list[T] | list[str]) -> None:
         for obj in objs:
             oid = obj.oid if not isinstance(obj, str) else obj
             if oid in self.byId:

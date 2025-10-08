@@ -378,6 +378,8 @@ class Document(DocObj):
 
         source_shape = source.region._shape
         candidates = self.get_element_type(category or source.category, page.oid)
+        # Precompute page-local element ids to avoid scanning the whole document
+        page_elem_ids = set(self.references.get_descendants(page.oid))
 
         def is_visible(target):
             target_shape = target.region._shape
@@ -438,9 +440,19 @@ class Document(DocObj):
 
             if not corridor.intersects(target_shape):
                 return False
-
-            for el in self.elements:
-                if el in {source, target}:
+            # Only check elements on the same page to determine corridor obstruction
+            for eid in page_elem_ids:
+                # fetch element once
+                el = self.elements.get(eid)
+                if not el:
+                    continue
+                # skip source/target
+                if (
+                    el is source
+                    or el is target
+                    or el.oid == source.oid
+                    or el.oid == target.oid
+                ):
                     continue
                 if corridor.intersects(el.region._shape):
                     return False
@@ -678,7 +690,8 @@ class Document(DocObj):
         else:
             p: Page = p
 
-        bb = bb.convert_space(p.factor_between_spaces("xml", "img"), "img")
+        bb = bb.convert_space(p.factor_between_spaces("xml", "img"), "img").rectify()
+
         img: Image.Image = base64_to_img(p.img) if isinstance(p.img, str) else p.img
         cropped = Image.fromarray(
             np.array(img)[

@@ -104,6 +104,7 @@ def compress_ids_front_coding(ids: set[str]) -> dict | list[str]:
     suffixes = [s[prefix_len:] for s in sorted_ids]
     return {"base": base, "suffixes": suffixes}
 
+
 def decompress_ids_front_coding(data: dict | list[str]) -> set[str]:
     if isinstance(data, list):
         return set(data)

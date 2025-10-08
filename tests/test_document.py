@@ -1,5 +1,4 @@
 import pytest
-
 from src.s2doc.document import Document
 from src.s2doc.element import Element
 from src.s2doc.errors import AreaNotFoundError, PageNotFoundError
@@ -455,7 +454,7 @@ def test_document_to_obj_and_from_dict(document):
         font.to_obj() for font in loaded_document.fonts
     ]
     assert document.metadata == loaded_document.metadata
-    assert document.raw_pdf == loaded_document.raw_pdf
+    assert document.raw_data == loaded_document.raw_data
     assert (
         document.semantic_network.to_obj() == loaded_document.semantic_network.to_obj()
     )

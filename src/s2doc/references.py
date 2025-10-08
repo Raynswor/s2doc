@@ -3,6 +3,9 @@ from collections import defaultdict
 from .errors import LoadFromDictError
 
 
+_EMPTY_FROZEN = frozenset()
+
+
 class ReferenceGraph:
     def __init__(self):
         self.adj: dict[str, set[str]] = defaultdict(set)
@@ -56,29 +59,41 @@ class ReferenceGraph:
             parent (str): The parent node in the newly added reference.
             child (str): The child node in the newly added reference.
         """
-        # Check each parent of the parent
-        for grandparent in list(self.rev_adj.get(parent, set())):
+        # Collect all edges to remove to avoid modifying sets during iteration
+        edges_to_remove: list[tuple[str, str]] = []
+        empty_nodes_to_clean: list[str] = []
+
+        adj = self.adj
+        rev = self.rev_adj
+
+        # Check each grandparent (parents of parent)
+        for grandparent in list(rev.get(parent, _EMPTY_FROZEN)):
             # If the grandparent already has a direct edge to child, it's redundant
-            if child in self.adj.get(grandparent, set()):
-                # Remove the redundant edge
-                self.adj[grandparent].remove(child)
-                self.rev_adj[child].remove(grandparent)
+            if child in adj.get(grandparent, _EMPTY_FROZEN):
+                edges_to_remove.append((grandparent, child))
 
-                # Clean up empty entries if needed
-                if not self.adj[grandparent]:
-                    del self.adj[grandparent]
-
-        # Check each child of the child
-        for grandchild in list(self.adj.get(child, set())):
+        # Check each grandchild (children of child)
+        for grandchild in list(adj.get(child, _EMPTY_FROZEN)):
             # If the parent already has a direct edge to grandchild, it's redundant
-            if grandchild in self.adj.get(parent, set()) and grandchild != child:
-                # Remove the redundant edge
-                self.adj[parent].remove(grandchild)
-                self.rev_adj[grandchild].remove(parent)
+            if grandchild != child and grandchild in adj.get(parent, _EMPTY_FROZEN):
+                edges_to_remove.append((parent, grandchild))
 
-                # Clean up empty entries if needed
-                if not self.adj[parent]:
-                    del self.adj[parent]
+        # Now safely remove all the collected edges
+        for edge_parent, edge_child in edges_to_remove:
+            parent_children = adj.get(edge_parent)
+            if parent_children and edge_child in parent_children:
+                parent_children.remove(edge_child)
+                if not parent_children:
+                    empty_nodes_to_clean.append(edge_parent)
+
+            child_parents = rev.get(edge_child)
+            if child_parents and edge_parent in child_parents:
+                child_parents.remove(edge_parent)
+
+        # Clean up empty entries from adj
+        for node in empty_nodes_to_clean:
+            if node in adj and not adj[node]:
+                del adj[node]
 
     def contains(self, target: str) -> bool:
         """
@@ -95,18 +110,31 @@ class ReferenceGraph:
             bool: True if the target string is found, False otherwise.
         """
         visited: set[str] = set()
-        for root in self._roots:
-            if self._dfs(root, target, visited):
+        stack = list(self._roots)
+        adj = self.adj
+        while stack:
+            node = stack.pop()
+            if node == target:
                 return True
+            if node in visited:
+                continue
+            visited.add(node)
+            for child in adj.get(node, _EMPTY_FROZEN):
+                if child not in visited:
+                    stack.append(child)
         return False
 
     def _dfs(self, node: str, target: str, visited: set[str]) -> bool:
+        # Defensive DFS that doesn't create new dict entries during reads
         if node == target:
             return True
         if node in visited:
             return False
         visited.add(node)
-        return any(self._dfs(child, target, visited) for child in self.adj[node])
+        for child in self.adj.get(node, _EMPTY_FROZEN):
+            if self._dfs(child, target, visited):
+                return True
+        return False
 
     def get_children(self, parent: str) -> set[str]:
         """
@@ -119,7 +147,7 @@ class ReferenceGraph:
             set[str]: A set of identifiers representing the children nodes of the given parent.
                       If the parent node does not exist, an empty set is returned.
         """
-        return self.adj.get(parent, set())
+        return set(self.adj.get(parent, _EMPTY_FROZEN))
 
     def get_nodes_with_non_zero_in_degree(self) -> set[str]:
         """
@@ -140,7 +168,7 @@ class ReferenceGraph:
         Returns:
             set[str]: A set of parent nodes that have a directed edge to the given child node.
         """
-        return self.rev_adj.get(child, set())
+        return set(self.rev_adj.get(child, _EMPTY_FROZEN))
 
     def remove_reference(self, parent: str, child: str) -> None:
         """
@@ -150,14 +178,26 @@ class ReferenceGraph:
             parent (str): The parent node.
             child (str): The child node.
         """
-        if parent in self.adj and child in self.adj[parent]:
-            self.adj[parent].remove(child)
-            self.rev_adj[child].remove(parent)
-            if not self.adj[parent]:
+        parent_children = self.adj.get(parent)
+        if parent_children and child in parent_children:
+            parent_children.remove(child)
+
+            # Check if this was the last parent before removing
+            child_parents = self.rev_adj.get(child)
+            was_last_parent = bool(child_parents and len(child_parents) == 1 and parent in child_parents)
+            if child_parents:
+                child_parents.remove(parent)
+
+            # Clean up empty adjacency list
+            if not parent_children:
                 del self.adj[parent]
-            if not self.rev_adj[child]:
-                del self.rev_adj[child]
+
+            # If child has no more parents, it becomes a root
+            if was_last_parent:
+                if child in self.rev_adj:
+                    del self.rev_adj[child]
                 self._roots.add(child)
+                self._non_roots.discard(child)
 
     def remove_node(self, node: str) -> None:
         """
@@ -166,20 +206,40 @@ class ReferenceGraph:
         Args:
             node (str): The node to remove.
         """
-        for child in list(self.adj.get(node, set())):
-            self.rev_adj[child].remove(node)
-            if not self.rev_adj[child]:
-                del self.rev_adj[child]
-                self._roots.add(child)
+        # Collect nodes that will become roots to avoid modifying sets during iteration
+        new_roots: list[str] = []
+        adj = self.adj
+        rev = self.rev_adj
 
-        for parent in list(self.rev_adj.get(node, set())):
-            self.adj[parent].remove(node)
-            if not self.adj[parent]:
-                del self.adj[parent]
+        for child in list(adj.get(node, _EMPTY_FROZEN)):
+            # Check if this node was the last parent before removing
+            child_parents = rev.get(child)
+            was_last_parent = bool(child_parents and len(child_parents) == 1 and node in child_parents)
+            if child_parents:
+                child_parents.remove(node)
+            if was_last_parent:
+                if child in rev:
+                    del rev[child]
+                new_roots.append(child)
 
-        self.adj.pop(node, None)
-        self.rev_adj.pop(node, None)
+        for parent in list(rev.get(node, _EMPTY_FROZEN)):
+            parent_children = adj.get(parent)
+            was_last_child = bool(parent_children and len(parent_children) == 1 and node in parent_children)
+            if parent_children:
+                parent_children.remove(node)
+            if was_last_child:
+                if parent in adj:
+                    del adj[parent]
+
+        # Now safely update root tracking
+        for new_root in new_roots:
+            self._roots.add(new_root)
+            self._non_roots.discard(new_root)
+
+        adj.pop(node, None)
+        rev.pop(node, None)
         self._roots.discard(node)
+        self._non_roots.discard(node)
 
     def replace_node(self, old_node: str, new_node: str) -> None:
         """
@@ -189,17 +249,24 @@ class ReferenceGraph:
             old_node (str): The node to replace.
             new_node (str): The new node to insert.
         """
-        if old_node in self.adj:
-            self.adj[new_node] = self.adj.pop(old_node)
-            for child in self.adj[new_node]:
-                self.rev_adj[child].remove(old_node)
-                self.rev_adj[child].add(new_node)
+        adj = self.adj
+        rev = self.rev_adj
 
-        if old_node in self.rev_adj:
-            self.rev_adj[new_node] = self.rev_adj.pop(old_node)
-            for parent in self.rev_adj[new_node]:
-                self.adj[parent].remove(old_node)
-                self.adj[parent].add(new_node)
+        if old_node in adj:
+            adj[new_node] = adj.pop(old_node)
+            for child in adj[new_node]:
+                parents = rev.get(child)
+                if parents:
+                    parents.discard(old_node)
+                    parents.add(new_node)
+
+        if old_node in rev:
+            rev[new_node] = rev.pop(old_node)
+            for parent in rev[new_node]:
+                children = adj.get(parent)
+                if children:
+                    children.discard(old_node)
+                    children.add(new_node)
 
         if old_node in self._roots:
             self._roots.remove(old_node)
@@ -223,9 +290,9 @@ class ReferenceGraph:
 
         def _dfs(n: str) -> None:
             neighbors = (
-                self.adj.get(n, set())
+                self.adj.get(n, _EMPTY_FROZEN)
                 if direction == "descendants"
-                else self.rev_adj.get(n, set())
+                else self.rev_adj.get(n, _EMPTY_FROZEN)
             )
             for neighbor in neighbors:
                 if neighbor not in related_nodes:
