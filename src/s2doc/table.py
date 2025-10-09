@@ -282,7 +282,10 @@ class Table(Element):
                                     ccc
                                 ] == cell_value:
                                     stack.append((rrr, ccc))
-                groups.append((cell_value.oid, group_coords))
+                if isinstance(cell_value, str):
+                    groups.append((cell_value, group_coords))
+                elif isinstance(cell_value, (TableCell, Element)):
+                    groups.append((cell_value.oid, group_coords))
                 for pos in group_coords:
                     coord_to_group[pos] = len(groups) - 1
 
