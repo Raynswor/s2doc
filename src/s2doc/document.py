@@ -763,8 +763,10 @@ class Document(DocObj):
                 else [],
                 metadata=d.get("metadata", {}),
                 raw_data=d.get("raw_data"),
-                semantic_network=SemanticKnowledgeGraph.from_dict(
-                    d["semantic_network"]
+                semantic_network=(
+                    SemanticKnowledgeGraph.from_dict(d["semantic_network"])
+                    if d.get("semantic_network")
+                    else SemanticKnowledgeGraph()
                 ),
                 semantic_references=(
                     ReferenceGraph.from_dict(d["semantic_references"])
