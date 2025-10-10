@@ -87,12 +87,25 @@ class TableCell(Element):
         return super().to_obj()
 
 
+class LeanCell:
+    def __init__(self, content: str, cell_id: str | None):
+        self.cell_id = cell_id
+        self.content = content
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "LeanCell":
+        return cls(d[0], d[1])
+
+    def to_obj(self) -> list:
+        return [self.content, self.cell_id]
+
+
 class TableTuple:
     def __init__(
         self,
-        row_header: list[TableCell],
-        column_header: list[TableCell],
-        value: TableCell,
+        row_header: list[LeanCell],
+        column_header: list[LeanCell],
+        value: LeanCell,
         origin: str,
         confidence: float,
     ):
@@ -104,20 +117,32 @@ class TableTuple:
 
     @classmethod
     def from_dict(cls, d: dict) -> "TableTuple":
-        return cls(
-            d.get("t", [[], [], ""])[0],
-            d.get("t", [[], [], ""])[1],
-            d.get("t", [[], [], ""])[2],
-            d.get("o", ""),
-            d.get("conf", 0.0),
-        )
+        if "t" in d:
+            return cls(
+                [LeanCell.from_dict(c) for c in d.get("t", [[], [], ""])[0]],
+                [LeanCell.from_dict(c) for c in d.get("t", [[], [], ""])[1]],
+                LeanCell.from_dict(d.get("t", [[], [], ""])[2]),
+                d.get("o", ""),
+                d.get("conf", 0.0),
+            )
+        elif "row" in d:
+            return cls(
+                d.get("row", []),
+                d.get("column", []),
+                d.get("value", ""),
+                d.get("origin", ""),
+                d.get("confidence", 0.0),
+            )
+        else:
+            raise ValueError("Invalid TableTuple dict format")
 
     def to_obj(self) -> dict:
-        return {
-            "t": [self.row_header, self.column_header, self.value],
-            "o": self.origin,
-            "conf": self.confidence,
-        }
+            return {
+                "t": [[cell.to_obj() for cell in self.row_header],[cell.to_obj() for cell in self.column_header], self.value.to_obj()],
+                "o": self.origin,
+                "conf": self.confidence,
+            }
+
 
 
 class Table(Element):
