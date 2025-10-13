@@ -107,8 +107,13 @@ class NormalizedObj(Generic[T]):
         if obj_cls is None:
             raise LoadFromDictError(what, "Unknown object type")
 
+        # If the dictionary is empty, return an empty NormalizedObj
+        if not dic:
+            return cls({})
+
         # check if it is trie - first element should not contain oid
-        if "oid" not in next(iter(dic.values())).keys():
+        first_val = next(iter(dic.values()))
+        if not isinstance(first_val, dict) or "oid" not in first_val.keys():
             flat_dic = flatten_compressed_trie(dic)
         else:
             flat_dic = dic
@@ -131,6 +136,7 @@ class NormalizedObj(Generic[T]):
                 if hasattr(self.byId[key], "to_obj")
                 else self.byId[key]
             )
+
         if as_trie:
             return build_compressed_trie(self.byId, get_child)
         return {k: get_child(k) for k in self.byId}
