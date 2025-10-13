@@ -154,6 +154,12 @@ class Table(Element):
         confidence: float | None = None,
     ):
         super().__init__(oid, "table", boundingBox, data, confidence)
+        #  - cell_nodes: a dict mapping a unique cell node id (e.g. "cell_0_0") to its properties,
+        #       including the original cell value, a grid bounding box (top, left, bottom, right),
+        #       and all grid positions (row, col) it covers.
+        #     - coord_to_group: mapping of each (row, col) to the group index.
+        #     - group_to_node: mapping of each group index to its unique cell node id.
+        #     - n_rows, n_cols: dimensions of the 2D cell array.
         if data is not None:
             if "cells" in data:
                 (
@@ -308,11 +314,16 @@ class Table(Element):
                                 ] == cell_value:
                                     stack.append((rrr, ccc))
                 if isinstance(cell_value, str):
-                    groups.append((cell_value, group_coords))
+                    node_id = cell_value
                 elif isinstance(cell_value, (TableCell, Element)):
-                    groups.append((cell_value.oid, group_coords))
-                for pos in group_coords:
-                    coord_to_group[pos] = len(groups) - 1
+                    node_id = cell_value.oid
+                elif isinstance(cell_value, dict):
+                    node_id = cell_value.get("oid", str(cell_value))
+                else:
+                    # Fallback for any other type
+                    node_id = str(cell_value)
+
+                groups.append((node_id, group_coords))
 
         # Build unique cell nodes for each group.
         cell_nodes: dict[str, dict] = {}
@@ -492,7 +503,7 @@ class Table(Element):
                     continue
 
                 # Get the cell at this position
-                _, cell_info = self.get_cell_at(row_idx, col_idx)
+                cell_id, cell_info = self.get_cell_at(row_idx, col_idx)
 
                 if not cell_info:
                     # Empty cell
@@ -514,9 +525,9 @@ class Table(Element):
 
                     # Add cell content (handle different value types). Use html.escape
                     # to properly escape special characters.
-                    raw_val = cell_info.get("value", "")
-                    cell_text = "".join(doc.get_element_data_value(raw_val))
-                    if cell_text is None:
+                    try:
+                        cell_text = "".join(doc.get_element_data_value(cell_id))
+                    except Exception as _:
                         cell_text = ""
                     cell_content = html.escape(str(cell_text))
                     html_parts.append(f"{cell_tag}{cell_content}</td>")
@@ -560,13 +571,16 @@ class Table(Element):
                 # Get the cell at this position
                 raw_val, cell_info = self.get_cell_at(row_idx, col_idx)
 
-                if not cell_info:
+                if not cell_info or not raw_val or raw_val == "" or raw_val.startswith("empty"):
                     # Empty cell
                     row_data.append("")
                     continue
 
                 # Add cell content (handle different value types)
-                cell_text = "".join(doc.get_element_data_value(raw_val))
+                try:
+                    cell_text = "".join(doc.get_element_data_value(raw_val))
+                except Exception as _:
+                    cell_text = ""
                 if cell_text is None:
                     cell_text = ""
                 # Escape pipe and normalize whitespace for markdown
