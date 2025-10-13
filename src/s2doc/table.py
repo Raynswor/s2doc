@@ -611,3 +611,99 @@ class Table(Element):
             markdown_parts.append(row)
 
         return "\n".join(markdown_parts)
+
+    from .document import Document
+    def build_semantic_model(self, doc: "Document") -> list[TableTuple]:
+        if not self.cells:
+            self.semantic_model = []
+            self.data["semantic_model"] = []
+            return []
+
+        def is_row_hdr(c): return doc.get_element_obj(c).data.get("row_label", False)
+        def is_col_hdr(c): return doc.get_element_obj(c).data.get("column_label", False)
+        def is_proj_row_hdr(c): return doc.get_element_obj(c).data.get("proj_label", False)
+
+        row_proj: dict[int, list[LeanCell]] = {}
+        for rr in range(self.n_rows):
+            proj = [self.cells[rr][cc] for cc in range(self.n_cols) if self.cells[rr][cc] is not None and is_proj_row_hdr(self.cells[rr][cc])]
+            if proj:
+                row_proj[rr] = self._dedup_cells(proj)
+
+        tuples: list[TableTuple] = []
+
+        for r in range(self.n_rows):
+            for c in range(self.n_cols):
+                cell = self.cells[r][c]
+                if cell is None or is_row_hdr(cell) or is_col_hdr(cell) or is_proj_row_hdr(cell):
+                    continue  # only emit data cells
+
+                # column headers above (top -> bottom)
+                col_headers: list[str] = []
+                rr = r - 1
+                col_wall = False
+                while rr >= 0:
+                    hc = self.cells[rr][c]
+                    if hc is not None and is_col_hdr(hc):
+                        col_wall = True
+                        col_headers.append(hc)
+                    rr -= 1
+                col_headers.reverse()
+
+                # row headers to the left (left -> right)
+                row_headers_left: list[str] = []
+                cc = c - 1
+                while cc >= 0:
+                    hc = self.cells[r][cc]
+                    if hc is not None and is_row_hdr(hc):
+                        row_headers_left.append(hc)
+                    cc -= 1
+                row_headers_left.reverse()
+
+                # projected row headers stacked above:
+                # if any column header exists above in this column, projection stops before it
+                proj_chain: list[str] = []
+                seen = set()
+                rr = r - 1
+                while rr >= 0:
+                    if col_wall:
+                        # stop at the first column header row for this column
+                        ch = self.cells[rr][c]
+                        if ch is not None and is_col_hdr(ch):
+                            break
+                    # add row-wide projected headers from this row once
+                    if rr in row_proj:
+                        for k in row_proj[rr]:
+                            if k not in seen:
+                                seen.add(k)
+                                proj_chain.append(k)
+                    # stop climbing if a concrete header boundary is hit
+                    chere = self.cells[rr][c]
+                    if chere is not None and (is_row_hdr(chere) or is_col_hdr(chere)):
+                        break
+                    rr -= 1
+                proj_chain.reverse()  # outer -> inner
+
+                full_row_headers = proj_chain + row_headers_left
+
+                tuples.append(
+                    TableTuple(
+                        row_header=full_row_headers,
+                        column_header=col_headers,
+                        value=cell,
+                        origin=self.oid,
+                        confidence=float(self.confidence or 0.0),
+                    )
+                )
+
+        self.semantic_model = [t.to_obj() for t in tuples]
+        self.data["semantic_model"] = self.semantic_model
+        return tuples
+
+
+    def _dedup_cells(self, cells: list["LeanCell"]) -> list["LeanCell"]:
+        out, seen = [], set()
+        for c in cells:
+            if c not in seen:
+                seen.add(c)
+                out.append(c)
+        return out

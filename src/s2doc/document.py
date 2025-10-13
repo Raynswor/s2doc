@@ -223,7 +223,9 @@ class Document(DocObj):
                     self.references.add_reference(element_id, r)
 
         if create_content_from_children:
-            ar.data["content"] = " ".join(self.get_element_data_value(element_id, "content"))
+            ar.data["content"] = " ".join(
+                self.get_element_data_value(element_id, "content")
+            )
 
         return element_id
 
@@ -738,7 +740,21 @@ class Document(DocObj):
 
     @classmethod
     def from_dict(cls, d: dict) -> "Document":
-        """Create Document instance from a dictionary."""
+        """
+        Create Document instance from a dictionary.
+
+        Supports both compressed (with id_map) and uncompressed (legacy) formats
+        for backwards compatibility.
+
+        Args:
+            d: Dictionary representation of the document
+
+        Returns:
+            Document: The constructed document instance
+
+        Raises:
+            LoadFromDictError: If the input is invalid or missing required fields
+        """
         if (
             not isinstance(d, dict)
             or not d.get("oid")
@@ -746,6 +762,10 @@ class Document(DocObj):
             or "elements" not in d
         ):
             raise LoadFromDictError(cls.__name__, f"Invalid input: {d}")
+
+        # Check if this is a compressed format (has id_map)
+        if "id_map" in d:
+            d = cls._decompress_ids(d)
 
         try:
             return cls(
@@ -777,9 +797,147 @@ class Document(DocObj):
         except Exception as e:
             raise LoadFromDictError(cls.__name__, str(e))
 
-    def to_obj(self) -> dict:
-        """Convert Document to a dictionary."""
-        return {
+    @classmethod
+    def _decompress_ids(cls, obj: dict) -> dict:
+        """
+        Restore string IDs from integer mappings.
+
+        Args:
+            obj: Document dictionary with integer IDs and an id_map
+
+        Returns:
+            dict: Document dictionary with string IDs restored
+        """
+        id_map = obj.get("id_map", {})
+        if not id_map:
+            return obj
+
+        # Convert id_map to an int->id mapping.
+        # Support both legacy dict format and new list format.
+        if isinstance(id_map, dict):
+            int_to_id = {int(k): v for k, v in id_map.items()}
+        elif isinstance(id_map, list):
+            int_to_id = {i: v for i, v in enumerate(id_map)}
+        else:
+            int_to_id = {}
+
+        # Create a copy without the id_map
+        result = {k: v for k, v in obj.items() if k != "id_map"}
+
+        # Helper to check numeric-string or int and map to original id
+        def id_lookup(token):
+            if isinstance(token, int) and token in int_to_id:
+                return int_to_id[token]
+            if isinstance(token, str) and token.isdigit():
+                iv = int(token)
+                if iv in int_to_id:
+                    return int_to_id[iv]
+            return None
+
+        # Restore nested values (only used inside pages/elements)
+        def restore_nested(value):
+            """
+            Recursively restore ids in nested structures.
+
+            Important: do NOT treat plain integer values as id placeholders because
+            numeric literals (e.g. row counts) should remain integers. We only map
+            numeric-strings (which originate from JSON-encoded dict keys) and
+            string values that match mapped ids. The element 'oid' field is
+            handled explicitly below.
+            """
+            # Preserve integer literals (avoid accidental id collisions)
+            if isinstance(value, int):
+                return value
+
+            # Map numeric-strings or string tokens that match an id
+            if isinstance(value, str):
+                if value.isdigit():
+                    mapped = id_lookup(value)
+                    return mapped if mapped is not None else value
+                # non-digit strings may still be ids
+                mapped = id_lookup(value)
+                return mapped if mapped is not None else value
+
+            if isinstance(value, dict):
+                newd = {}
+                for kk, vv in value.items():
+                    # keys that are numeric-strings should be restored
+                    new_key = id_lookup(kk) or kk
+                    newd[new_key] = restore_nested(vv)
+                return newd
+
+            if isinstance(value, list):
+                return [restore_nested(vv) for vv in value]
+
+            return value
+
+        # Restore IDs in pages: keys and any nested id occurrences
+        if "pages" in result and isinstance(result["pages"], dict):
+            new_pages = {}
+            for k, v in result["pages"].items():
+                mapped_key = id_lookup(k) or k
+                new_pages[mapped_key] = restore_nested(v)
+            result["pages"] = new_pages
+
+        # Restore IDs in elements: keys and ensure each element's 'oid' is restored
+        if "elements" in result and isinstance(result["elements"], dict):
+            new_elements = {}
+            for k, v in result["elements"].items():
+                mapped_key = id_lookup(k) or k
+                if isinstance(v, dict):
+                    # restore nested values and specifically the 'oid' field
+                    restored_v = restore_nested(v)
+                    # If the element dict has an 'oid' field that is an int/numeric-string, restore it
+                    if isinstance(restored_v, dict) and "oid" in restored_v:
+                        oid_val = restored_v.get("oid")
+                        oid_mapped = id_lookup(oid_val) or oid_val
+                        restored_v["oid"] = oid_mapped
+                    new_elements[mapped_key] = restored_v
+                else:
+                    new_elements[mapped_key] = v
+            result["elements"] = new_elements
+
+        # Restore references (dict[parent] = list(children))
+        if "references" in result and isinstance(result["references"], dict):
+            new_refs = {}
+            for parent, children in result["references"].items():
+                mapped_parent = id_lookup(parent) or parent
+                new_children = []
+                if isinstance(children, list):
+                    for child in children:
+                        mapped_child = id_lookup(child) or child
+                        new_children.append(mapped_child)
+                new_refs[mapped_parent] = new_children
+            result["references"] = new_refs
+
+        # Restore semantic_references similarly
+        if "semantic_references" in result and isinstance(
+            result["semantic_references"], dict
+        ):
+            new_srefs = {}
+            for parent, children in result["semantic_references"].items():
+                mapped_parent = id_lookup(parent) or parent
+                new_children = []
+                if isinstance(children, list):
+                    for child in children:
+                        mapped_child = id_lookup(child) or child
+                        new_children.append(mapped_child)
+                new_srefs[mapped_parent] = new_children
+            result["semantic_references"] = new_srefs
+
+        return result
+
+    def to_obj(self, compress_ids: bool = True) -> dict:
+        """
+        Convert Document to a dictionary.
+
+        Args:
+            compress_ids: If True, replaces string IDs with integer mappings to reduce file size.
+
+        Returns:
+            dict: Dictionary representation of the document
+        """
+        obj = {
             "oid": self.oid,
             "pages": self.pages.to_obj(),
             "elements": self.elements.to_obj(),
@@ -792,9 +950,109 @@ class Document(DocObj):
             "semantic_references": self.semantic_references.to_obj(),
         }
 
-    def to_json(self) -> str:
+        if compress_ids:
+            obj = self._compress_ids(obj)
+
+        return obj
+
+    def _compress_ids(self, obj: dict) -> dict:
+        """
+        Replace string IDs with integer mappings to reduce JSON size.
+
+        This method collects all unique IDs from pages, elements, and references,
+        creates a mapping to integers, and replaces all occurrences.
+
+        Args:
+            obj: The document dictionary with string IDs
+
+        Returns:
+            dict: The document dictionary with integer IDs and an id_map
+        """
+        # Collect all unique IDs
+        id_set = set()
+
+        # Collect from pages
+        id_set.update(obj["pages"].keys())
+
+        # Collect from elements
+        id_set.update(obj["elements"].keys())
+
+        # Collect from references (both parents and children)
+        for parent, children in obj["references"].items():
+            id_set.add(parent)
+            id_set.update(children)
+
+        # Collect from semantic_references
+        for parent, children in obj["semantic_references"].items():
+            id_set.add(parent)
+            id_set.update(children)
+
+        # Create mapping: string ID -> integer
+        id_to_int = {id_str: idx for idx, id_str in enumerate(sorted(id_set))}
+
+        # Create reverse mapping for storage as a list (index -> string)
+        # Using a list instead of a dict reduces JSON size because array
+        # values are shorter than object keys.
+        id_map_list = [None] * len(id_to_int)
+        for id_str, idx in id_to_int.items():
+            id_map_list[idx] = id_str
+
+        # Helper function to replace IDs in nested structures
+        def replace_id(value):
+            if isinstance(value, str) and value in id_to_int:
+                return id_to_int[value]
+            return value
+
+        def replace_ids_in_dict(d):
+            if not isinstance(d, dict):
+                return d
+            new_dict = {}
+            for k, v in d.items():
+                # Replace key if it's an ID
+                new_key = replace_id(k)
+                # Replace value recursively
+                if isinstance(v, dict):
+                    new_dict[new_key] = replace_ids_in_dict(v)
+                elif isinstance(v, list):
+                    # Process list items recursively
+                    new_list = []
+                    for item in v:
+                        if isinstance(item, dict):
+                            new_list.append(replace_ids_in_dict(item))
+                        elif isinstance(item, str):
+                            new_list.append(replace_id(item))
+                        else:
+                            new_list.append(item)
+                    new_dict[new_key] = new_list
+                elif isinstance(v, str):
+                    new_dict[new_key] = replace_id(v)
+                else:
+                    new_dict[new_key] = v
+            return new_dict
+
+        # Replace IDs in pages
+        obj["pages"] = replace_ids_in_dict(obj["pages"])
+
+        # Replace IDs in elements
+        obj["elements"] = replace_ids_in_dict(obj["elements"])
+
+        # Replace IDs in references
+        obj["references"] = replace_ids_in_dict(obj["references"])
+
+        # Replace IDs in semantic_references
+        obj["semantic_references"] = replace_ids_in_dict(obj["semantic_references"])
+
+        # Add the ID mapping (as a list) to the object
+        obj["id_map"] = id_map_list
+
+        return obj
+
+    def to_json(self, compress_ids: bool = True) -> str:
         """
         Serialize Document to JSON.
+
+        Args:
+            compress_ids: If True, replaces string IDs with integer mappings to reduce file size.
 
         Returns:
             str: JSON representation of the document
@@ -831,7 +1089,7 @@ class Document(DocObj):
                 return super(NpEncoder, self).default(o)
 
         # Convert to object dictionary then serialize to JSON
-        return json.dumps(self.to_obj(), cls=NpEncoder)
+        return json.dumps(self.to_obj(compress_ids=compress_ids), cls=NpEncoder)
 
     def is_referenced_by(self, element: Element | str, element2: Element | str) -> bool:
         """
