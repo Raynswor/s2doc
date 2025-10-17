@@ -86,42 +86,32 @@ class TableCell(Element):
     def to_obj(self) -> dict:
         return super().to_obj()
 
-
-class LeanCell:
-    def __init__(self, content: str, cell_id: str | None):
-        self.cell_id = cell_id
-        self.content = content
-
-    @classmethod
-    def from_dict(cls, d: dict) -> "LeanCell":
-        return cls(d[0], d[1])
-
-    def to_obj(self) -> list:
-        return [self.content, self.cell_id]
-
-
 class TableTuple:
     def __init__(
         self,
-        row_header: list[LeanCell],
-        column_header: list[LeanCell],
-        value: LeanCell,
+        row_header: list[str],
+        column_header: list[str],
+        value: str,
         origin: str,
         confidence: float,
+        row_index: int = -1,
+        column_index: int = -1,
     ):
         self.row_header = row_header
         self.column_header = column_header
         self.value = value
         self.origin = origin
         self.confidence = confidence
+        self.row_index = row_index
+        self.column_index = column_index
 
     @classmethod
     def from_dict(cls, d: dict) -> "TableTuple":
         if "t" in d:
             return cls(
-                [LeanCell.from_dict(c) for c in d.get("t", [[], [], ""])[0]],
-                [LeanCell.from_dict(c) for c in d.get("t", [[], [], ""])[1]],
-                LeanCell.from_dict(d.get("t", [[], [], ""])[2]),
+                [cell for cell in d.get("t", [[], [], ""])[0]],
+                [cell for cell in d.get("t", [[], [], ""])[1]],
+                d.get("t", [[], [], ""])[2],
                 d.get("o", ""),
                 d.get("conf", 0.0),
             )
@@ -132,15 +122,21 @@ class TableTuple:
                 d.get("value", ""),
                 d.get("origin", ""),
                 d.get("confidence", 0.0),
+                d.get("row_index", -1),
+                d.get("column_index", -1),
             )
         else:
             raise ValueError("Invalid TableTuple dict format")
 
     def to_obj(self) -> dict:
             return {
-                "t": [[cell.to_obj() for cell in self.row_header],[cell.to_obj() for cell in self.column_header], self.value.to_obj()],
-                "o": self.origin,
-                "conf": self.confidence,
+                "row": self.row_header,
+                "column": self.column_header,
+                "value": self.value,
+                "origin": self.origin,
+                "confidence": self.confidence,
+                "row_index": self.row_index,
+                "column_index": self.column_index,
             }
 
 

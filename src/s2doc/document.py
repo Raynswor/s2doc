@@ -9,6 +9,7 @@ from typing import Literal as L
 import numpy as np
 from numpy.typing import ArrayLike
 from PIL import Image
+from s2doc.table import TableTuple
 from shapely import box
 
 from .base import DocObj
@@ -46,6 +47,7 @@ class Document(DocObj):
         semantic_references: ReferenceGraph | None = None,
         metadata: dict[str, Any] | None = None,
         raw_data: bytes | None = None,
+        semantic_tuples: list[TableTuple] | None = None
     ):
         self.oid: str = oid
         self.pages: NormalizedObj[Page] = pages or NormalizedObj[Page]()
@@ -83,6 +85,8 @@ class Document(DocObj):
         self.id_generation_variant: Callable[..., str] = self._generate_element_id(
             "long"
         )
+
+        self.semantic_tuples = semantic_tuples or []
 
     def _generate_element_id(self, variant: str) -> Callable[..., str]:
         """Generate a function that creates element IDs based on the specified variant."""
@@ -790,6 +794,11 @@ class Document(DocObj):
                     if d.get("semantic_references")
                     else ReferenceGraph()
                 ),
+                semantic_tuples=(
+                    [TableTuple.from_dict(x) for x in d.get("semantic_tuples", [])]
+                    if d.get("semantic_tuples")
+                    else []
+                )
             )
         except Exception as e:
             raise LoadFromDictError(cls.__name__, str(e))
@@ -937,6 +946,7 @@ class Document(DocObj):
             "raw_data": self.raw_data,
             "semantic_network": self.semantic_network.to_obj(),
             "semantic_references": self.semantic_references.to_obj(),
+            "semantic_tuples": [x.to_obj() for x in self.semantic_tuples],
         }
 
         return obj
