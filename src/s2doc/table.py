@@ -346,6 +346,10 @@ class Table(Element):
                 "positions": coords,
             }
             group_to_node[i] = node_id
+            
+            # Map each coordinate to this group index
+            for coord in coords:
+                coord_to_group[coord] = i
 
         return cell_nodes, coord_to_group, group_to_node, n_rows, n_cols
 
