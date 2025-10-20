@@ -205,7 +205,8 @@ class Table(Element):
                     row_copy.append(cell.oid)
             cells_copy.append(row_copy)
         di = super().to_obj()
-        di["cells"] = cells_copy
+        di["data"]["cells"] = cells_copy
+        # di["cells"] = cells_copy
         return di
 
     @property
@@ -346,7 +347,7 @@ class Table(Element):
                 "positions": coords,
             }
             group_to_node[i] = node_id
-            
+
             # Map each coordinate to this group index
             for coord in coords:
                 coord_to_group[coord] = i
