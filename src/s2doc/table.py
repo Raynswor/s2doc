@@ -172,7 +172,8 @@ class Table(Element):
                 self.group_to_node = {}
                 self.n_rows = 0
                 self.n_cols = 0
-            self.semantic_model: list[TableTuple] = self.data.get("semantic_model", [])
+            self.semantic_model: list[TableTuple] = [TableTuple.from_dict(t) if not isinstance( t, TableTuple) else t
+                                   for t in self.data.get("semantic_model", [])]
 
 
     @staticmethod
@@ -205,7 +206,9 @@ class Table(Element):
                     row_copy.append(cell.oid)
             cells_copy.append(row_copy)
         di = super().to_obj()
-        di["cells"] = cells_copy
+        di["data"]["cells"] = cells_copy
+        di["data"]["semantic_model"] = [t.to_obj() if isinstance(t, TableTuple) else t for t in self.semantic_model]
+        # di["cells"] = cells_copy
         return di
 
     @property
