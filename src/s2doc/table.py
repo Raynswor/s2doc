@@ -172,7 +172,7 @@ class Table(Element):
                 self.group_to_node = {}
                 self.n_rows = 0
                 self.n_cols = 0
-            self.semantic_model = self.data.get("semantic_model", [])
+            self.semantic_model: list[TableTuple] = self.data.get("semantic_model", [])
 
 
     @staticmethod
@@ -346,7 +346,7 @@ class Table(Element):
                 "positions": coords,
             }
             group_to_node[i] = node_id
-            
+
             # Map each coordinate to this group index
             for coord in coords:
                 coord_to_group[coord] = i

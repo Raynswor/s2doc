@@ -95,6 +95,9 @@ class Page(DocObj):
     def is_rotated(self):
         return self.layout.rotation != 0
 
+    def is_rotated_90_or_270(self):
+        return self.layout.rotation in {90, 270}
+
     def __repr__(self):
         return f"Page({self.oid}, {self.number}, {self.layout})"
 

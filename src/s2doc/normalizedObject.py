@@ -12,7 +12,19 @@ T = TypeVar("T", Page, Element)
 class NormalizedObj(Generic[T]):
     def __init__(self, byId: dict[str, T] | None = None):
         self.byId: dict[str, T] = byId if byId else dict()
-        self.allIds: list[str] = list(self.byId.keys())
+        # Lazy-computed ID list to save memory - only create when needed
+        self._allIds_cache: list[str] | None = None
+
+    @property
+    def allIds(self) -> list[str]:
+        """Lazy property that returns list of IDs only when needed"""
+        if self._allIds_cache is None or len(self._allIds_cache) != len(self.byId):
+            self._allIds_cache = list(self.byId.keys())
+        return self._allIds_cache
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate the cached ID list"""
+        self._allIds_cache = None
 
     def values(self) -> ValuesView[T]:
         return self.byId.values()
@@ -36,7 +48,7 @@ class NormalizedObj(Generic[T]):
 
     def __setitem__(self, key: str, value: T) -> None:
         if key not in self.byId:
-            self.allIds.append(key)
+            self._invalidate_cache()
         self.byId[key] = value
 
     def __contains__(self, key: str) -> bool:
@@ -49,15 +61,15 @@ class NormalizedObj(Generic[T]):
         return iter(self.byId.values())
 
     def _sync_ids(self) -> None:
-        """Ensure allIds matches byId keys"""
-        self.allIds = list(self.byId.keys())
+        """Ensure allIds cache is invalidated"""
+        self._invalidate_cache()
 
     def add(self, obj: T) -> None:
         """Add an object to the collection (replaces append)"""
         if obj.oid in self.byId:
             raise ExistenceError(f"Object with id {obj.oid} already exists")
         self.byId[obj.oid] = obj
-        self.allIds.append(obj.oid)
+        self._invalidate_cache()
 
     def add_with_key(self, key: str, obj: T) -> None:
         """
@@ -85,20 +97,20 @@ class NormalizedObj(Generic[T]):
             raise ExistenceError(f"Object with id {key} already exists")
         else:
             self.byId[key] = obj
-            self.allIds.append(key)
+            self._invalidate_cache()
 
     def remove(self, obj: T | str) -> None:
         oid = obj.oid if not isinstance(obj, str) else obj
         if oid in self.byId:
             del self.byId[oid]
-        self._sync_ids()
+        self._invalidate_cache()
 
     def remove_multiple(self, objs: list[T] | list[str]) -> None:
         for obj in objs:
             oid = obj.oid if not isinstance(obj, str) else obj
             if oid in self.byId:
                 del self.byId[oid]
-        self._sync_ids()
+        self._invalidate_cache()
 
     @classmethod
     def from_dict(cls, dic: dict, what: str) -> "NormalizedObj":

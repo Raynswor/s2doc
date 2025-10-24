@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
+from typing import Self
 
 from shapely import LineString, MultiPolygon, Polygon
 
 from .errors import IncompatibleError, LoadFromDictError
-from typing import Self
 
 
 def check_space(func):
@@ -42,13 +42,13 @@ class Region(ABC):
     def intersects(self, other: "Region") -> bool:
         """Intersects implies that overlaps, touches, covers, or within are True."""
         return self._shape.intersects(other._shape)
-    
+
     def rectify(self) -> "RectangleRegion":
         """Get the minimal bounding rectangle of the region."""
         if isinstance(self, RectangleRegion):
             return self
         return RectangleRegion(*self._shape.bounds, self._space)
-    
+
     @abstractmethod
     def transpose(self) -> "Region":
         raise NotImplementedError("Transpose not implemented for this region type")
@@ -63,12 +63,15 @@ class Region(ABC):
                 int(union_shape.bounds[0]), int(union_shape.bounds[2]), self._space
             )
         elif isinstance(union_shape, MultiPolygon):
-            return PolygonRegion([
-                (union_shape.bounds[0],union_shape.bounds[1]),
-                (union_shape.bounds[0],union_shape.bounds[3]),
-                (union_shape.bounds[2],union_shape.bounds[3]),
-                (union_shape.bounds[2],union_shape.bounds[1])
-            ], self._space)
+            return PolygonRegion(
+                [
+                    (union_shape.bounds[0], union_shape.bounds[1]),
+                    (union_shape.bounds[0], union_shape.bounds[3]),
+                    (union_shape.bounds[2], union_shape.bounds[3]),
+                    (union_shape.bounds[2], union_shape.bounds[1]),
+                ],
+                self._space,
+            )
         else:
             raise ValueError("Union resulted in an unsupported geometry type")
 
@@ -161,7 +164,7 @@ class SpanRegion(Region):
             return self
         else:
             raise IncompatibleError("space", self.space, space)
-    
+
     def transpose(self) -> "SpanRegion":
         return SpanRegion(self.end, self.start, self.space)
 
@@ -241,7 +244,7 @@ class RectangleRegion(Region):
             y2=self.y2 * factors[1],
             space=space,
         )
-    
+
     def transpose(self) -> "RectangleRegion":
         return RectangleRegion(self.y1, self.x1, self.y2, self.x2, self.space)
 
@@ -283,7 +286,10 @@ class PolygonRegion(Region):
     @classmethod
     def from_dict(cls, d: list) -> "PolygonRegion":
         if len(d) != 2:
-            raise LoadFromDictError(cls.__name__, f"Incorrect number of parameters: expected 3, got {len(d)}")
+            raise LoadFromDictError(
+                cls.__name__,
+                f"Incorrect number of parameters: expected 3, got {len(d)}",
+            )
         return cls(d[0], d[1])
 
     def convert_space(self, factors: list[float], space: str) -> "PolygonRegion":
@@ -293,7 +299,7 @@ class PolygonRegion(Region):
             points=[(x * factors[0], y * factors[1]) for x, y in self.points],
             space=space,
         )
-    
+
     def transpose(self) -> "PolygonRegion":
         return PolygonRegion(
             points=[(y, x) for x, y in self.points],
@@ -326,16 +332,34 @@ class LineRegion(Region):
     def __init__(
         self, x1: float, y1: float, x2: float, y2: float, space: str = "img"
     ) -> None:
+        # Ensure x1 and x2 are at least 1 pixel apart for visibility
+        if abs(x2 - x1) < 1:
+            if x2 >= x1:
+                x2 = x1 + 1
+            else:
+                x2 = x1 - 1
+
+        # Ensure y1 and y2 are at least 1 pixel apart for visibility
+        if abs(y2 - y1) < 1:
+            if y2 >= y1:
+                y2 = y1 + 1
+            else:
+                y2 = y1 - 1
+
         super().__init__(LineString([(x1, y1), (x2, y2)]), space)
         self.x1 = x1
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
-    
+
+    def rectify(self) -> RectangleRegion:
+        """Get the minimal bounding rectangle of the line region."""
+        return RectangleRegion(self.x1, self.y1, self.x2, self.y2, self.space)
+
     @property
     def width(self) -> float:
         return abs(self.x2 - self.x1)
-    
+
     @property
     def height(self) -> float:
         return abs(self.y2 - self.y1)
@@ -362,7 +386,7 @@ class LineRegion(Region):
             y2=self.y2 * factors[1],
             space=space,
         )
-    
+
     def transpose(self) -> "LineRegion":
         return LineRegion(self.y1, self.x1, self.y2, self.x2, self.space)
 
@@ -414,7 +438,7 @@ class PolylineRegion(Region):
             points=[(x * factors[0], y * factors[1]) for x, y in self.points],
             space=space,
         )
-    
+
     def transpose(self) -> "PolylineRegion":
         return PolylineRegion(
             points=[(y, x) for x, y in self.points],
