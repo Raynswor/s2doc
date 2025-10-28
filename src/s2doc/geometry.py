@@ -148,6 +148,9 @@ class Region(ABC):
     def __eq__(self, value: object) -> bool:
         pass
 
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} [{self.space}->{self.bounds}]>"
+
 
 class SpanRegion(Region):
     """
