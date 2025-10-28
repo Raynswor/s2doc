@@ -22,6 +22,18 @@ class Region(ABC):
         self._shape = shape
         self._space = space
 
+    def __getattribute__(self, name):
+        """Intercept _shape access to create geometry lazily if needed."""
+        if name == "_shape":
+            shape = object.__getattribute__(self, "_shape")
+            if shape is None:
+                # Create the shape on first access using the stored factory
+                factory = object.__getattribute__(self, "_shape_factory")
+                shape = factory()
+                object.__setattr__(self, "_shape", shape)
+            return shape
+        return object.__getattribute__(self, name)
+
     @property
     def bounds(self) -> tuple[float, float, float, float]:
         return self._shape.bounds
@@ -143,9 +155,12 @@ class SpanRegion(Region):
     """
 
     def __init__(self, start: int, end: int, space: str = "tokens") -> None:
-        super().__init__(LineString([(start, 0), (end, 0)]), space)
         self.start = start
         self.end = end
+        self._space = space
+        self._shape = None
+        # Factory function to create the LineString when needed
+        self._shape_factory = lambda: LineString([(self.start, 0), (self.end, 0)])
 
     def to_obj(self) -> list:
         return ["s", self.start, self.end, self.space]
@@ -186,23 +201,39 @@ class RectangleRegion(Region):
     def __init__(
         self, x1: float, y1: float, x2: float, y2: float, space: str = "img"
     ) -> None:
-        super().__init__(Polygon([(x1, y1), (x1, y2), (x2, y2), (x2, y1)]), space)
+        # Store bounds and create factory for lazy initialization
+        self._bounds = (float(x1), float(y1), float(x2), float(y2))
+        self._space = space
+        self._shape = None
+        # Factory function to create the Polygon when needed
+        self._shape_factory = lambda: Polygon(
+            [
+                (self._bounds[0], self._bounds[1]),
+                (self._bounds[0], self._bounds[3]),
+                (self._bounds[2], self._bounds[3]),
+                (self._bounds[2], self._bounds[1]),
+            ]
+        )
+
+    @property
+    def bounds(self) -> tuple[float, float, float, float]:
+        return self._bounds
 
     @property
     def x1(self) -> float:
-        return self.bounds[0]
+        return self._bounds[0]
 
     @property
     def y1(self) -> float:
-        return self.bounds[1]
+        return self._bounds[1]
 
     @property
     def x2(self) -> float:
-        return self.bounds[2]
+        return self._bounds[2]
 
     @property
     def y2(self) -> float:
-        return self.bounds[3]
+        return self._bounds[3]
 
     @property
     def width(self) -> float:
@@ -274,8 +305,11 @@ class PolygonRegion(Region):
     """
 
     def __init__(self, points: list[tuple[float, float]], space: str = "img") -> None:
-        super().__init__(Polygon(points), space)
         self.points = points
+        self._space = space
+        self._shape = None
+        # Factory function to create the Polygon when needed
+        self._shape_factory = lambda: Polygon(self.points)
 
     def to_obj(self) -> list:
         return ["pr", self.points, self.space]
@@ -346,11 +380,16 @@ class LineRegion(Region):
             else:
                 y2 = y1 - 1
 
-        super().__init__(LineString([(x1, y1), (x2, y2)]), space)
         self.x1 = x1
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
+        self._space = space
+        self._shape = None
+        # Factory function to create the LineString when needed
+        self._shape_factory = lambda: LineString(
+            [(self.x1, self.y1), (self.x2, self.y2)]
+        )
 
     def rectify(self) -> RectangleRegion:
         """Get the minimal bounding rectangle of the line region."""
@@ -416,8 +455,11 @@ class PolylineRegion(Region):
     """
 
     def __init__(self, points: list[tuple[float, float]], space: str = "img") -> None:
-        super().__init__(LineString(points), space)
         self.points = points
+        self._space = space
+        self._shape = None
+        # Factory function to create the LineString when needed
+        self._shape_factory = lambda: LineString(self.points)
 
     def to_obj(self) -> list:
         return ["pl", self.points, self.space]
