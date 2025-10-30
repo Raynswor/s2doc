@@ -54,6 +54,16 @@ class Page(DocObj):
             raise IncompatibleError("space", from_space, to_space)
 
         # TODO: currently only 2D spaces are supported
+        # Guard against zero or invalid dimensions which would cause a
+        # division-by-zero or meaningless conversion factors.
+        if (
+            from_dim.dimensions[0] <= 0
+            or from_dim.dimensions[1] <= 0
+            or to_dim.dimensions[0] <= 0
+            or to_dim.dimensions[1] <= 0
+        ):
+            raise IncompatibleError("space", from_space, to_space)
+
         conversion_factor = [
             to_dim.dimensions[0] / from_dim.dimensions[0],
             to_dim.dimensions[1] / from_dim.dimensions[1],

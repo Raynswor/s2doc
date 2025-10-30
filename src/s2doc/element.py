@@ -33,9 +33,11 @@ class Element(DocObj):
         # Lazy import to avoid circular imports and reduce module import cost.
         if category.lower() == "table":
             from .table import Table
+
             return Table(oid, region, data, confidence)
         if category.lower() == "table_cell":
             from .table import TableCell
+
             return TableCell(oid, region, data, confidence)
         return cls(oid, category, region, data, confidence)
 
@@ -47,8 +49,8 @@ class Element(DocObj):
         self, other: "Element", merge_data: bool = True, merge_confidence: bool = True
     ):
         # check if the other element is of the same type
-        if self.category != other.category:
-            raise IncompatibleError("type", self.category, other.category)
+        if self.category.lower() != other.category.lower():
+            raise IncompatibleError("type", self.category, other.__class__.__name__)
         # Update bounding region
         self.region = self.region.union(other.region)
 
@@ -96,7 +98,7 @@ class Element(DocObj):
         except KeyError as e:
             # Provide clearer error message about which key was missing
             missing = e.args[0] if e.args else str(e)
-            raise LoadFromDictError(cls.__name__, f"missing key: {missing}")
+            raise LoadFromDictError(cls.__name__, f"missing key: {missing}, {e}")
 
     def to_obj(self) -> dict:
         dic: dict[str, Any] = {

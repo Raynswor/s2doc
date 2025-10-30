@@ -12,3 +12,4 @@ wheels/
 .pytest_cache/
 .vscode/
 .coverage
+.ruff_cache/

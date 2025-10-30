@@ -1,7 +1,7 @@
 import pytest
 from src.s2doc.document import Document
 from src.s2doc.element import Element
-from src.s2doc.errors import AreaNotFoundError, PageNotFoundError
+from src.s2doc.errors import ElementNotFoundError, PageNotFoundError
 from src.s2doc.geometry import RectangleRegion
 from src.s2doc.page import Page
 from src.s2doc.semantics import SemanticEntity, SemanticType
@@ -249,7 +249,7 @@ def test_is_referenced_by(document):
 
 
 def test_get_img_snippet_invalid_element(document):
-    with pytest.raises(AreaNotFoundError):
+    with pytest.raises(ElementNotFoundError):
         document.get_img_snippet("invalid_element")
 
 

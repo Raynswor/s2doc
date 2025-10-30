@@ -55,7 +55,7 @@ def test_element_from_dict():
     data = {
         "oid": "e1",
         "c": "text",
-        "r": ["pr", 0, 0, 10, 10, "img"],
+        "r": ["rr", 0, 0, 10, 10, "img"],
         "data": {"key": "value"},
         "confidence": 0.9,
     }
@@ -76,7 +76,7 @@ def test_element_to_obj():
     assert obj == {
         "oid": "e1",
         "c": "text",
-        "r": ["pr", 0, 0, 10, 10, "img"],
+        "r": ["rr", 0, 0, 10, 10, "img"],
         "data": {"key": "value"},
         "confidence": 0.9,
     }

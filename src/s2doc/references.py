@@ -184,7 +184,9 @@ class ReferenceGraph:
 
             # Check if this was the last parent before removing
             child_parents = self.rev_adj.get(child)
-            was_last_parent = bool(child_parents and len(child_parents) == 1 and parent in child_parents)
+            was_last_parent = bool(
+                child_parents and len(child_parents) == 1 and parent in child_parents
+            )
             if child_parents:
                 child_parents.remove(parent)
 
@@ -214,7 +216,9 @@ class ReferenceGraph:
         for child in list(adj.get(node, _EMPTY_FROZEN)):
             # Check if this node was the last parent before removing
             child_parents = rev.get(child)
-            was_last_parent = bool(child_parents and len(child_parents) == 1 and node in child_parents)
+            was_last_parent = bool(
+                child_parents and len(child_parents) == 1 and node in child_parents
+            )
             if child_parents:
                 child_parents.remove(node)
             if was_last_parent:
@@ -224,7 +228,11 @@ class ReferenceGraph:
 
         for parent in list(rev.get(node, _EMPTY_FROZEN)):
             parent_children = adj.get(parent)
-            was_last_child = bool(parent_children and len(parent_children) == 1 and node in parent_children)
+            was_last_child = bool(
+                parent_children
+                and len(parent_children) == 1
+                and node in parent_children
+            )
             if parent_children:
                 parent_children.remove(node)
             if was_last_child:

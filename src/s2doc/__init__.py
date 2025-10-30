@@ -1,17 +1,13 @@
 from .base import DocObj
 from .document import Document
 
-try:
-    from .drawer import Drawer
-except (ModuleNotFoundError, ImportError):
-    pass
 from .element import Element
 from .errors import (
     DocumentError,
     ElementNotFoundError,
     PageNotFoundError,
     LoadFromDictError,
-    IncompatibleError
+    IncompatibleError,
 )
 from .font import Font
 from .geometry import LineRegion, PolygonRegion, RectangleRegion, Region, SpanRegion
@@ -53,5 +49,5 @@ __all__ = [
     "ElementNotFoundError",
     "PageNotFoundError",
     "LoadFromDictError",
-    "IncompatibleError"
+    "IncompatibleError",
 ]

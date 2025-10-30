@@ -4,6 +4,7 @@ from typing import Self
 from shapely import LineString, MultiPolygon, Polygon
 
 from .errors import IncompatibleError, LoadFromDictError
+from .geometry_tags import RegionTag
 
 
 def check_space(func):
@@ -124,21 +125,29 @@ class Region(ABC):
 
     @classmethod
     def from_dict(cls, d: list) -> "Region":
-        match d[0]:
-            case "s":
-                return SpanRegion.from_dict(d[1:])
-            case "rr":
-                return RectangleRegion.from_dict(d[1:])
-            case "pr":
-                return PolygonRegion.from_dict(d[1:])
-            case "lr":
-                return LineRegion.from_dict(d[1:])
-            case "pl":
-                return PolylineRegion.from_dict(d[1:])
-            case _:
-                raise LoadFromDictError(
-                    cls.__class__.__name__, "Incorrect type for parameters"
-                )
+        if not d:
+            raise LoadFromDictError(cls.__name__, "Missing tag for region")
+        try:
+            tag = RegionTag(d[0])
+        except ValueError:
+            raise LoadFromDictError(
+                cls.__name__, f"Incorrect type for parameters: {d[0]}"
+            )
+
+        if tag is RegionTag.SPAN:
+            return SpanRegion.from_dict(d[1:])
+        elif tag is RegionTag.RECT:
+            return RectangleRegion.from_dict(d[1:])
+        elif tag is RegionTag.POLY:
+            return PolygonRegion.from_dict(d[1:])
+        elif tag is RegionTag.LINE:
+            return LineRegion.from_dict(d[1:])
+        elif tag is RegionTag.POLYLINE:
+            return PolylineRegion.from_dict(d[1:])
+        else:
+            raise LoadFromDictError(
+                cls.__name__, f"Incorrect type for parameters: {d[0]}"
+            )
 
     @abstractmethod
     def convert_space(self, factors: list[float], space: str) -> Self:
@@ -166,7 +175,7 @@ class SpanRegion(Region):
         self._shape_factory = lambda: LineString([(self.start, 0), (self.end, 0)])
 
     def to_obj(self) -> list:
-        return ["s", self.start, self.end, self.space]
+        return [RegionTag.SPAN.value, self.start, self.end, self.space]
 
     def get_points(self) -> list[tuple[float, float]]:
         return [(self.start, self.end)]
@@ -257,7 +266,7 @@ class RectangleRegion(Region):
         return self.width > self.height
 
     def to_obj(self) -> list:
-        return ["rr", self.x1, self.y1, self.x2, self.y2, self.space]
+        return [RegionTag.RECT.value, self.x1, self.y1, self.x2, self.y2, self.space]
 
     def get_points(self) -> list[tuple[float, float]]:
         return [(self.x1, self.y1), (self.x2, self.y2)]
@@ -315,7 +324,7 @@ class PolygonRegion(Region):
         self._shape_factory = lambda: Polygon(self.points)
 
     def to_obj(self) -> list:
-        return ["pr", self.points, self.space]
+        return [RegionTag.POLY.value, self.points, self.space]
 
     def get_points(self) -> list[tuple[float, float]]:
         return self.points
@@ -325,7 +334,7 @@ class PolygonRegion(Region):
         if len(d) != 2:
             raise LoadFromDictError(
                 cls.__name__,
-                f"Incorrect number of parameters: expected 3, got {len(d)}",
+                f"Incorrect number of parameters: expected 2, got {len(d)}",
             )
         return cls(d[0], d[1])
 
@@ -407,7 +416,7 @@ class LineRegion(Region):
         return abs(self.y2 - self.y1)
 
     def to_obj(self) -> list:
-        return ["lr", self.x1, self.y1, self.x2, self.y2, self.space]
+        return [RegionTag.LINE.value, self.x1, self.y1, self.x2, self.y2, self.space]
 
     def get_points(self) -> list[tuple[float, float]]:
         return [(self.x1, self.y1), (self.x2, self.y2)]
@@ -465,7 +474,7 @@ class PolylineRegion(Region):
         self._shape_factory = lambda: LineString(self.points)
 
     def to_obj(self) -> list:
-        return ["pl", self.points, self.space]
+        return [RegionTag.POLYLINE.value, self.points, self.space]
 
     def get_points(self) -> list[tuple[float, float]]:
         return self.points

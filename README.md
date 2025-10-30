@@ -6,54 +6,72 @@ S2Doc originated as an internal data format developed for a table extraction pip
 
 ## Features
 
-- **Standardized Document Format**: A consistent data model for document representation.
-- **Page Management**: Create and manage pages with image and coordinate space metadata.
-- **Element Handling**: Define and manipulate content elements with bounding boxes and categories.
-- **Semantic Layer**: Link document elements to semantic types and entities.
-- **Reference Graphs**: Represent structural, spatial, and semantic relationships between document elements.
-- **Serialization**: Convert documents to and from JSON for storage, transfer, or interoperability.
-- **Extensibility**: Designed to support custom extensions for new annotation types, layout features, and processing components.
+- Standardized document model (pages, elements, regions, semantics)
+- Support for multiple coordinate spaces per page (xml/img/tokens)
+- Region types: rectangles, polygons, lines, polylines, spans
+- Serialization to/from compact JSON-like lists/dicts
+- Reference graphs for spatial/semantic relations
+- Extensible: add new element types, semantic entities, and converters
 
-## Installation
+## Quickstart (developer)
 
-To install the library, run:
+Clone and install in editable mode (recommended for development):
 
 ```bash
-git clone
+git clone <repo-url>
 cd s2doc
-pip install s2doc
+uv sync
 ```
 
-## Usage
+This installs the package and development extras (pytest, ruff, pre-commit).
 
-### Creating a Document
+Run tests:
+
+```bash
+uv run pytest -q
+```
+
+Run the linters / auto-fixers:
+
+```bash
+uv run ruff check .
+# or (auto-fix)
+uv run ruff format .
+
+# Run pre-commit hooks (applies fixes where configured)
+uv run pre-commit run --all-files
+```
+
+API examples
+------------
+
+Create a document and add a rectangular element:
 
 ```python
 from s2doc.document import Document
 from s2doc.page import Page
-
-doc = Document(oid="doc-1")
-page = Page(oid="page-1", number=1, None, {
-    "img": Space(label="img", dimensions=[100.0, 100.0], axis_directions=[True, False]),
-})
-doc.add_page(page)
-```
-
-### Adding Elements
-
-```python
 from s2doc.geometry import RectangleRegion
 
-reg = RectangleRegion(x1=0, y1=0, x2=100, y2=100, space="img")
-element_id = doc.add_element(page="page-1", category="Text", region=reg)
+doc = Document(oid="doc-1")
+page = Page(oid="page-1", number=1, img=None)
+page.spaces["img"].dimensions = [800.0, 600.0]
+doc.pages.add(page)
+
+reg = RectangleRegion(0, 0, 100, 50, space="img")
+element_id = doc.add_element(page=page, category="Text", region=reg)
 ```
 
+See the `tests/` directory for more usage examples that mirror common workflows.
 
-## Contributing
+Contributing
+------------
 
-Contributions are welcome. To contribute, fork the repository and submit a pull request with a clear description of your changes.
+Contributions are welcome. Please:
 
+1. Fork the repository and create a feature branch
+2. Run tests and linters locally (see Quickstart)
+3. Open a pull request with a short description and tests for behavior changes
 
-## Citation
-TBD
-
+License & citation
+------------------
+TBD — add license and citation instructions here.

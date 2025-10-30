@@ -4,7 +4,9 @@ from .errors import LoadFromDictError
 class Space:
     __slots__ = ("label", "dimensions", "axis_directions")
 
-    def __init__(self, label: str, dimensions: list[float], axis_directions: list[bool] = []) -> None:
+    def __init__(
+        self, label: str, dimensions: list[float], axis_directions: list[bool] = []
+    ) -> None:
         """
         Initialize a Space object with a label, dimensions, and optional axis directions.
 

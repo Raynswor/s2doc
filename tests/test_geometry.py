@@ -63,7 +63,7 @@ def test_region_distance():
 
 
 def test_region_from_dict():
-    rect_data = ["pr", 0, 0, 10, 10, "img"]
+    rect_data = ["rr", 0, 0, 10, 10, "img"]
     span_data = ["s", 0, 10, "tokens"]
 
     rect_region = Region.from_dict(rect_data)

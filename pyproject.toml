@@ -6,12 +6,11 @@ readme = "README.md"
 authors = [
     {name = "Sebastian Kempf", email = "sebastian.kempf@uni-wuerzburg.de" },
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "pillow",
     "shapely",
     "numpy",
-    "owlready2",
 ]
 
 keywords = ["document processing", "semantic annotation", "layout analysis", "spatial modeling", "document representation"]
@@ -29,12 +28,29 @@ plot = [
     "matplotlib>=3.10.1",
     "networkx>=3.4.2",
 ]
+ontology=[
+    "owlready2"
+]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
+    "ruff",
+    "pre-commit>=3.4.0",
 ]
+
+
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+exclude = ["**/.git/**", "**/.venv/**", "**/__pycache__/**", ".github/**", "build/**", "dist/**"]
+[tool.ruff.lint]
+extend-ignore = ["E203"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "S101"]
 
 
 [build-system]

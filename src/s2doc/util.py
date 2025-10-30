@@ -87,7 +87,7 @@ def compress_ids_front_coding(ids: set[str]) -> dict | list[str]:
     sorted_ids = sorted(ids)
     first = sorted_ids[0]
     prefix_len = len(first)
-    
+
     # Find longest common prefix
     for other in sorted_ids[1:]:
         i = 0

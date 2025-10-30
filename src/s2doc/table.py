@@ -19,12 +19,15 @@ class TableCell(Element):
     def is_label(self) -> bool:
         """Returns True if the cell is marked as a header (row or column)."""
         return self.row_label or self.column_label
+
     def is_row_label(self) -> bool:
         """Returns True if the cell is marked as a row label."""
         return self.row_label
+
     def is_column_label(self) -> bool:
         """Returns True if the cell is marked as a column label."""
         return self.column_label
+
     def is_projected_row_label(self) -> bool:
         """Returns True if the cell is marked as a projected row label."""
         return self.data.get("projected_row_label", False)
@@ -86,6 +89,7 @@ class TableCell(Element):
     def to_obj(self) -> dict:
         return super().to_obj()
 
+
 class TableTuple:
     def __init__(
         self,
@@ -129,16 +133,15 @@ class TableTuple:
             raise ValueError("Invalid TableTuple dict format")
 
     def to_obj(self) -> dict:
-            return {
-                "row": self.row_header,
-                "column": self.column_header,
-                "value": self.value,
-                "origin": self.origin,
-                "confidence": self.confidence,
-                "row_index": self.row_index,
-                "column_index": self.column_index,
-            }
-
+        return {
+            "row": self.row_header,
+            "column": self.column_header,
+            "value": self.value,
+            "origin": self.origin,
+            "confidence": self.confidence,
+            "row_index": self.row_index,
+            "column_index": self.column_index,
+        }
 
 
 class Table(Element):
@@ -172,9 +175,10 @@ class Table(Element):
                 self.group_to_node = {}
                 self.n_rows = 0
                 self.n_cols = 0
-            self.semantic_model: list[TableTuple] = [TableTuple.from_dict(t) if not isinstance( t, TableTuple) else t
-                                   for t in self.data.get("semantic_model", [])]
-
+            self.semantic_model: list[TableTuple] = [
+                TableTuple.from_dict(t) if not isinstance(t, TableTuple) else t
+                for t in self.data.get("semantic_model", [])
+            ]
 
     @staticmethod
     def from_element(element: Element):
@@ -216,19 +220,31 @@ class Table(Element):
                 else:
                     # Handle Element objects with rowSpan/colSpan attributes
                     cell_id = cell.oid
-                    if hasattr(cell, 'rowSpan') or hasattr(cell, 'colSpan'):
+                    if hasattr(cell, "rowSpan") or hasattr(cell, "colSpan"):
                         cell_entry = {"oid": cell_id}
-                        if hasattr(cell, 'rowSpan') and cell.rowSpan and cell.rowSpan > 1:
+                        if (
+                            hasattr(cell, "rowSpan")
+                            and cell.rowSpan
+                            and cell.rowSpan > 1
+                        ):
                             cell_entry["rowSpan"] = cell.rowSpan
-                        if hasattr(cell, 'colSpan') and cell.colSpan and cell.colSpan > 1:
+                        if (
+                            hasattr(cell, "colSpan")
+                            and cell.colSpan
+                            and cell.colSpan > 1
+                        ):
                             cell_entry["colSpan"] = cell.colSpan
-                        row_copy.append(cell_entry if cell_entry != {"oid": cell_id} else cell_id)
+                        row_copy.append(
+                            cell_entry if cell_entry != {"oid": cell_id} else cell_id
+                        )
                     else:
                         row_copy.append(cell_id)
             cells_copy.append(row_copy)
         di = super().to_obj()
         di["data"]["cells"] = cells_copy
-        di["data"]["semantic_model"] = [t.to_obj() if isinstance(t, TableTuple) else t for t in self.semantic_model]
+        di["data"]["semantic_model"] = [
+            t.to_obj() if isinstance(t, TableTuple) else t for t in self.semantic_model
+        ]
         # di["cells"] = cells_copy
         return di
 
@@ -265,7 +281,9 @@ class Table(Element):
         elif all(isinstance(v, dict) for v in value):
             self.data["semantic"] = list(value)  # type: ignore
         else:
-            raise ValueError("semantic_model must be Iterable[TableTuple] or Iterable[dict]")
+            raise ValueError(
+                "semantic_model must be Iterable[TableTuple] or Iterable[dict]"
+            )
 
     ## Logical Model (Grid)
     @property
@@ -352,7 +370,6 @@ class Table(Element):
         # [TODO] Bug?
 
         for i, (node_id, coords) in enumerate(groups):
-
             node_id = node_id if isinstance(node_id, str) else node_id.oid
 
             top = min(r for r, _ in coords)
@@ -595,7 +612,12 @@ class Table(Element):
                 # Get the cell at this position
                 raw_val, cell_info = self.get_cell_at(row_idx, col_idx)
 
-                if not cell_info or not raw_val or raw_val == "" or raw_val.startswith("empty"):
+                if (
+                    not cell_info
+                    or not raw_val
+                    or raw_val == ""
+                    or raw_val.startswith("empty")
+                ):
                     # Empty cell
                     row_data.append("")
                     continue
@@ -692,7 +714,7 @@ class Table(Element):
                 if c is None or isinstance(c, str):
                     continue
 
-                if c["data"].get('row_label'):
+                if c["data"].get("row_label"):
                     push_run(left, c["oid"])
                     for k in col_headers[j]:
                         if k not in row_meta_seen:
@@ -700,23 +722,30 @@ class Table(Element):
                             row_meta.append(k)
                     last_row_hdr[j] = c["oid"]
 
-                if c["data"].get('column_label'):
+                if c["data"].get("column_label"):
                     push_run(col_headers[j], c["oid"])
                     for k in left:
                         if k not in col_meta_seen[j]:
                             col_meta_seen[j].add(k)
                             col_meta[j].append(k)
 
-                if not c["data"].get('row_label') and not c["data"].get('column_label'):
+                if not c["data"].get("row_label") and not c["data"].get("column_label"):
                     proj = [last_row_hdr[j]] if last_row_hdr[j] else []
                     rh = dedup_concat(left, proj, row_meta)
                     ch = dedup_concat(col_headers[j], col_meta[j])
-                    tuples.append(TableTuple(rh, ch, c["oid"], origin=self.oid, confidence=float(self.confidence or 0.0)))
+                    tuples.append(
+                        TableTuple(
+                            rh,
+                            ch,
+                            c["oid"],
+                            origin=self.oid,
+                            confidence=float(self.confidence or 0.0),
+                        )
+                    )
 
         self.semantic_model = tuples
         self.data["semantic_model"] = self.semantic_model
         return tuples
-
 
 
 def get_table_obj(document, t: Table | Element | str) -> Table:
@@ -729,10 +758,14 @@ def get_table_obj(document, t: Table | Element | str) -> Table:
     return table
 
 
-def generate_table_cell_matrix(document, t: Table | Element | str) -> list[list[TableCell | None]]:
+def generate_table_cell_matrix(
+    document, t: Table | Element | str
+) -> list[list[TableCell | None]]:
     table: Table = get_table_obj(document, t)
 
-    obj_matrix: list[list[(TableCell | None)]] = [[None for _ in range(table.n_cols)] for _ in range(table.n_rows)]
+    obj_matrix: list[list[(TableCell | None)]] = [
+        [None for _ in range(table.n_cols)] for _ in range(table.n_rows)
+    ]
 
     for node_id, cell in table.cell_nodes.items():
         obj = document.get_element_obj(node_id)

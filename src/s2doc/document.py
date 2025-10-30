@@ -11,7 +11,6 @@ from numpy.typing import ArrayLike
 from PIL import Image
 from shapely import box
 
-
 from .base import DocObj
 from .element import Element
 from .errors import (
@@ -195,15 +194,16 @@ class Document(DocObj):
             #     f"Region '{region}' is out of bounds for space '{region.space}' in page '{page_obj.oid}'."
             # )
 
-        category = category.lower()
+        category_original = category
+        category_lower = category.lower()
 
         while not element_id or element_id in self.elements:
-            element_id = self.id_generation_variant(page_obj.oid, category)
+            element_id = self.id_generation_variant(page_obj.oid, category_lower)
 
         ar = Element.create(
             element_id,
+            category=category_original,
             region=region,
-            category=category,
             data=data or {},
             confidence=confidence,
         )
@@ -283,7 +283,9 @@ class Document(DocObj):
         self.revisions[-1].del_objs.add(element_id)
 
     def replace_element(self, old_id: str, new_element: Element) -> None:
-        assert self.elements.byId[old_id].category == new_element.category.lower()
+        assert (
+            self.elements.byId[old_id].category.lower() == new_element.category.lower()
+        )
         self.elements.byId[new_element.oid] = new_element
         self.elements.remove(old_id)
 
@@ -498,7 +500,8 @@ class Document(DocObj):
         return [
             element
             for element_id in self.references.get_descendants(page)
-            if (element := self.elements[element_id]).category == category.lower()
+            if (element := self.elements[element_id]).category.lower()
+            == category.lower()
             and element.region.x1 <= x <= element.region.x2
             and element.region.y1 <= y <= element.region.y2
         ]
@@ -590,9 +593,11 @@ class Document(DocObj):
             Iterable[Element]: Generator of matching elements
         """
         if isinstance(category, list):
-            category = [cat.lower() for cat in category]
-            return self.get_element_by(lambda x: x.category in category, page)
-        return self.get_element_by(lambda x: x.category == category.lower(), page)
+            lowers = [cat.lower() for cat in category]
+            return self.get_element_by(lambda x: x.category.lower() in lowers, page)
+        return self.get_element_by(
+            lambda x: x.category.lower() == category.lower(), page
+        )
 
     def get_element_by(
         self, fun: Callable[[Element], bool], page: str | int | Page = ""
@@ -647,18 +652,36 @@ class Document(DocObj):
                 raise PageNotFoundError(f"Page '{page}' does not exist.")
 
         if p.img is None:
-            raise DocumentError(f"Page {p} does not have an image")
-        img = np.array(base64_to_img(p.img))  # type: ignore
+            # try to find an 'img' space on the page
+            img_space = p.spaces.get("img") if hasattr(p, "spaces") else None
+            if img_space and len(img_space.dimensions) >= 2:
+                # dimensions: [width, height]
+                w, h = int(img_space.dimensions[0]), int(img_space.dimensions[1])
+                img = np.zeros((h, w, 3), dtype=np.uint8)
+            else:
+                raise DocumentError(f"Page {p.oid} does not have an image or img space")
+        else:
+            img = np.array(base64_to_img(p.img))  # type: ignore
 
         for element in elements:
-            bb = element.region.convert_space(
-                p.factor_between_spaces("xml", "img"), "img"
-            )
-            yield img[
-                int(bb.y1) - padding[1] : int(bb.y2) + padding[1],
-                int(bb.x1) - padding[0] : int(bb.x2) + padding[0],
-                :,
-            ]
+            # Only convert when the element region is not already in image space
+            bb = element.region
+            if bb.space != "img":
+                bb = bb.convert_space(p.factor_between_spaces(bb.space, "img"), "img")
+
+            # Clamp slicing indices to image bounds (numpy arrays use [row, col])
+            img_h, img_w = img.shape[0], img.shape[1]
+            y0 = max(int(bb.y1) - padding[1], 0)
+            y1 = min(int(bb.y2) + padding[1], img_h)
+            x0 = max(int(bb.x1) - padding[0], 0)
+            x1 = min(int(bb.x2) + padding[0], img_w)
+
+            # Ensure non-negative-sized slice
+            if y1 <= y0 or x1 <= x0:
+                # return an empty array with shape (0,0,3)
+                yield np.zeros((0, 0, 3), dtype=img.dtype)
+            else:
+                yield img[y0:y1, x0:x1, :]
 
     @overload
     def get_img_snippet(
@@ -691,32 +714,45 @@ class Document(DocObj):
     def get_img_snippet_from_bb(
         self,
         bb: Region,
-        p: str | Page,
+        page: str | Page,
         as_string: bool,
         padding: tuple[int, int] = (0, 0),
     ) -> str | Image.Image:
         if not bb:
             raise DocumentError(f"Invalid bounding box {bb}")
 
-        if not isinstance(p, Page):
-            p: Page = self.pages.get(p)
+        if not isinstance(page, Page):
+            p: Page = self.pages.get(page)
         else:
-            p: Page = p
+            p: Page = page
 
-        bb = bb.convert_space(p.factor_between_spaces("xml", "img"), "img").rectify()
+        if bb.space != "img":
+            bb = bb.convert_space(p.factor_between_spaces(bb.space, "img"), "img")
+        bb = bb.rectify()
 
-        img: Image.Image = base64_to_img(p.img) if isinstance(p.img, str) else p.img
-        cropped = Image.fromarray(
-            np.array(img)[
-                max(int(bb.y1) - padding[1], 0) : min(
-                    int(bb.y2) + padding[1], img.size[1] - 1
-                ),
-                max(int(bb.x1) - padding[0], 0) : min(
-                    int(bb.x2) + padding[0], img.size[0] - 1
-                ),
-                :,
-            ]
-        )
+        img: Image.Image
+        if p.img is None:
+            img_space = p.spaces.get("img") if hasattr(p, "spaces") else None
+            if img_space and len(img_space.dimensions) >= 2:
+                img = Image.new(
+                    "RGB", (int(img_space.dimensions[0]), int(img_space.dimensions[1]))
+                )
+            else:
+                raise DocumentError(f"Page {p.oid} does not have an image or img space")
+        else:
+            img = base64_to_img(p.img) if isinstance(p.img, str) else p.img
+        # Convert PIL image to numpy array for slicing then back to Image
+        arr = np.array(img)
+        img_h, img_w = arr.shape[0], arr.shape[1]
+        y0 = max(int(bb.y1) - padding[1], 0)
+        y1 = min(int(bb.y2) + padding[1], img_h)
+        x0 = max(int(bb.x1) - padding[0], 0)
+        x1 = min(int(bb.x2) + padding[0], img_w)
+
+        if y1 <= y0 or x1 <= x0:
+            cropped = Image.new("RGB", (0, 0))
+        else:
+            cropped = Image.fromarray(arr[y0:y1, x0:x1, :])
         return cropped if not as_string else img_to_base64(cropped)
 
     @overload
