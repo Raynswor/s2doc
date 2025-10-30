@@ -6,6 +6,13 @@ try:
 except (ModuleNotFoundError, ImportError):
     pass
 from .element import Element
+from .errors import (
+    DocumentError,
+    ElementNotFoundError,
+    PageNotFoundError,
+    LoadFromDictError,
+    IncompatibleError
+)
 from .font import Font
 from .geometry import LineRegion, PolygonRegion, RectangleRegion, Region, SpanRegion
 from .group import GroupedElements
@@ -42,4 +49,9 @@ __all__ = [
     "SemanticType",
     "Space",
     "ReferenceGraph",
+    "DocumentError",
+    "ElementNotFoundError",
+    "PageNotFoundError",
+    "LoadFromDictError",
+    "IncompatibleError"
 ]

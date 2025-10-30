@@ -190,20 +190,41 @@ class Table(Element):
         )
 
     def to_obj(self):
-        # convert cells from elements to ids
+        # convert cells from elements to ids, preserving span information
         cells_copy = []
         cells = self.cells
-        for row in cells:
+        for row_idx, row in enumerate(cells):
             row_copy: list = []
-            for cell in row:
+            for col_idx, cell in enumerate(row):
                 if cell is None:
                     row_copy.append(None)
                 elif isinstance(cell, str):
                     row_copy.append(cell)
                 elif isinstance(cell, dict):
-                    row_copy.append(cell.get("oid", ""))
+                    # Preserve rowSpan and colSpan if they exist in the dict
+                    cell_id = cell.get("oid", "")
+                    if "rowSpan" in cell or "colSpan" in cell:
+                        # Store as dict with oid, rowSpan, colSpan
+                        cell_entry = {"oid": cell_id}
+                        if "rowSpan" in cell:
+                            cell_entry["rowSpan"] = cell["rowSpan"]
+                        if "colSpan" in cell:
+                            cell_entry["colSpan"] = cell["colSpan"]
+                        row_copy.append(cell_entry)
+                    else:
+                        row_copy.append(cell_id)
                 else:
-                    row_copy.append(cell.oid)
+                    # Handle Element objects with rowSpan/colSpan attributes
+                    cell_id = cell.oid
+                    if hasattr(cell, 'rowSpan') or hasattr(cell, 'colSpan'):
+                        cell_entry = {"oid": cell_id}
+                        if hasattr(cell, 'rowSpan') and cell.rowSpan and cell.rowSpan > 1:
+                            cell_entry["rowSpan"] = cell.rowSpan
+                        if hasattr(cell, 'colSpan') and cell.colSpan and cell.colSpan > 1:
+                            cell_entry["colSpan"] = cell.colSpan
+                        row_copy.append(cell_entry if cell_entry != {"oid": cell_id} else cell_id)
+                    else:
+                        row_copy.append(cell_id)
             cells_copy.append(row_copy)
         di = super().to_obj()
         di["data"]["cells"] = cells_copy
@@ -635,91 +656,92 @@ class Table(Element):
             self.data["semantic_model"] = []
             return []
 
-        def is_row_hdr(c): return doc.get_element_obj(c).data.get("row_label", False)
-        def is_col_hdr(c): return doc.get_element_obj(c).data.get("column_label", False)
-        def is_proj_row_hdr(c): return doc.get_element_obj(c).data.get("proj_label", False)
+        H = len(self.cells)
+        W = len(self.cells[0]) if H > 0 else 0
 
-        row_proj: dict[int, list[LeanCell]] = {}
-        for rr in range(self.n_rows):
-            proj = [self.cells[rr][cc] for cc in range(self.n_cols) if self.cells[rr][cc] is not None and is_proj_row_hdr(self.cells[rr][cc])]
-            if proj:
-                row_proj[rr] = self._dedup_cells(proj)
+        def push_run(lst, cid):
+            if not lst or lst[-1] != cid:
+                lst.append(cid)
+
+        def dedup_concat(*lists):
+            out, seen = [], set()
+            for lst in lists:
+                for cid in lst or ():
+                    if cid not in seen:
+                        seen.add(cid)
+                        out.append(cid)
+            return out
+
+        col_headers = [[] for _ in range(W)]
+        col_meta = [[] for _ in range(W)]
+        col_meta_seen = [set() for _ in range(W)]
+        last_row_hdr = [None for _ in range(W)]
 
         tuples: list[TableTuple] = []
 
-        for r in range(self.n_rows):
-            for c in range(self.n_cols):
-                cell = self.cells[r][c]
-                if cell is None or is_row_hdr(cell) or is_col_hdr(cell) or is_proj_row_hdr(cell):
-                    continue  # only emit data cells
+        for i in range(H):
+            left = []
+            row_meta = []
+            row_meta_seen = set()
 
-                # column headers above (top -> bottom)
-                col_headers: list[str] = []
-                rr = r - 1
-                col_wall = False
-                while rr >= 0:
-                    hc = self.cells[rr][c]
-                    if hc is not None and is_col_hdr(hc):
-                        col_wall = True
-                        col_headers.append(hc)
-                    rr -= 1
-                col_headers.reverse()
+            for j in range(W):
+                try:
+                    c: Element = self.cells[i][j]
+                except IndexError:
+                    continue
+                if c is None or isinstance(c, str):
+                    continue
 
-                # row headers to the left (left -> right)
-                row_headers_left: list[str] = []
-                cc = c - 1
-                while cc >= 0:
-                    hc = self.cells[r][cc]
-                    if hc is not None and is_row_hdr(hc):
-                        row_headers_left.append(hc)
-                    cc -= 1
-                row_headers_left.reverse()
+                if c["data"].get('row_label'):
+                    push_run(left, c["oid"])
+                    for k in col_headers[j]:
+                        if k not in row_meta_seen:
+                            row_meta_seen.add(k)
+                            row_meta.append(k)
+                    last_row_hdr[j] = c["oid"]
 
-                # projected row headers stacked above:
-                # if any column header exists above in this column, projection stops before it
-                proj_chain: list[str] = []
-                seen = set()
-                rr = r - 1
-                while rr >= 0:
-                    if col_wall:
-                        # stop at the first column header row for this column
-                        ch = self.cells[rr][c]
-                        if ch is not None and is_col_hdr(ch):
-                            break
-                    # add row-wide projected headers from this row once
-                    if rr in row_proj:
-                        for k in row_proj[rr]:
-                            if k not in seen:
-                                seen.add(k)
-                                proj_chain.append(k)
-                    # stop climbing if a concrete header boundary is hit
-                    chere = self.cells[rr][c]
-                    if chere is not None and (is_row_hdr(chere) or is_col_hdr(chere)):
-                        break
-                    rr -= 1
-                proj_chain.reverse()  # outer -> inner
+                if c["data"].get('column_label'):
+                    push_run(col_headers[j], c["oid"])
+                    for k in left:
+                        if k not in col_meta_seen[j]:
+                            col_meta_seen[j].add(k)
+                            col_meta[j].append(k)
 
-                full_row_headers = proj_chain + row_headers_left
+                if not c["data"].get('row_label') and not c["data"].get('column_label'):
+                    proj = [last_row_hdr[j]] if last_row_hdr[j] else []
+                    rh = dedup_concat(left, proj, row_meta)
+                    ch = dedup_concat(col_headers[j], col_meta[j])
+                    tuples.append(TableTuple(rh, ch, c["oid"], origin=self.oid, confidence=float(self.confidence or 0.0)))
 
-                tuples.append(
-                    TableTuple(
-                        row_header=full_row_headers,
-                        column_header=col_headers,
-                        value=cell,
-                        origin=self.oid,
-                        confidence=float(self.confidence or 0.0),
-                    )
-                )
-
-        self.semantic_model = [t.to_obj() for t in tuples]
+        self.semantic_model = tuples
         self.data["semantic_model"] = self.semantic_model
         return tuples
 
 
-    def _dedup_cells(self, cells: list["LeanCell"]) -> list["LeanCell"]:
-        out, seen = [], set()
-        for c in cells:
-            if c not in seen:
-                seen.add(c)
-                out.append(c)
-        return out
+
+def get_table_obj(document, t: Table | Element | str) -> Table:
+    if isinstance(t, str):
+        table: Table = Table.from_element(document.get_element_obj(t))
+    elif isinstance(t, Element):
+        table = Table.from_element(t)
+    else:
+        table = t
+    return table
+
+
+def generate_table_cell_matrix(document, t: Table | Element | str) -> list[list[TableCell | None]]:
+    table: Table = get_table_obj(document, t)
+
+    obj_matrix: list[list[(TableCell | None)]] = [[None for _ in range(table.n_cols)] for _ in range(table.n_rows)]
+
+    for node_id, cell in table.cell_nodes.items():
+        obj = document.get_element_obj(node_id)
+        if obj is None:
+            continue
+        if not isinstance(obj, TableCell):
+            obj = TableCell.from_element(obj)
+        grid = cell.get("grid", {})
+        for r in range(grid.get("top", 0), grid.get("bottom", 0) + 1):
+            for c in range(grid.get("left", 0), grid.get("right", 0) + 1):
+                obj_matrix[r][c] = obj
+    return obj_matrix

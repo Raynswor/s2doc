@@ -10,7 +10,7 @@ class PageNotFoundError(DocumentError):
     pass
 
 
-class AreaNotFoundError(DocumentError):
+class ElementNotFoundError(DocumentError):
     """Raised when an element cannot be found"""
 
     pass

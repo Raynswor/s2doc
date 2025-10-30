@@ -36,10 +36,10 @@ class Revision(DocObj):
     def to_obj(self) -> dict:
         d = {
             "timestamp": self.timestamp,
-            "objects": self.objects,
+            "objects": list(self.objects),
             "comment": self.comment,
             "reference_revoked": self.reference_revoked,
         }
         if self.del_objs:
-            d["del_objs"] = self.del_objs
+            d["del_objs"] = list(self.del_objs)
         return d

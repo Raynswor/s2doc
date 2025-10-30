@@ -1,6 +1,17 @@
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-from owlready2 import Ontology, get_ontology
+try:
+    from owlready2 import Ontology, get_ontology
+
+    HAS_OWLREADY = True
+except ImportError:
+    HAS_OWLREADY = False
+    get_ontology = None  # type: ignore
+    if TYPE_CHECKING:
+        from owlready2 import Ontology
+    else:
+        Ontology = Any  # type: ignore
 
 from .errors import LoadFromDictError
 
@@ -136,7 +147,10 @@ class SemanticEntity:
         if self.flags:
             ret["flags"] = self.flags
         if self.literals:
-            ret["literals"] = {k: v.to_obj() if not isinstance(v, dict) else v for k, v in self.literals.items()}
+            ret["literals"] = {
+                k: v.to_obj() if not isinstance(v, dict) else v
+                for k, v in self.literals.items()
+            }
         return ret
 
     def __eq__(self, other: object) -> bool:
@@ -207,15 +221,20 @@ class SemanticKnowledgeGraph:
         self.relationships: list[SemanticRelationship] = relationships or []
         self.available_types: dict[str, SemanticType] = available_types or {}
         if ontology_path:
-            self.src_ontology: Ontology = self.load_ontology(ontology_path)
+            self.src_ontology: Any = self.load_ontology(ontology_path)
             self.resolve_ontology()
 
-    def load_ontology(self, path: str | Path | None = None) -> Ontology:
+    def load_ontology(self, path: str | Path | None = None) -> Any:
+        if not HAS_OWLREADY:
+            raise ImportError(
+                "owlready2 is not installed. Install it to use ontology features: "
+                "pip install owlready2"
+            )
         if path is None:
             raise ValueError("Ontology path is required")
         if isinstance(path, Path):
             path = str(path)
-        return get_ontology(path).load()
+        return get_ontology(path).load()  # type: ignore[misc]
 
     def resolve_ontology(self):
         # load available types

@@ -9,14 +9,14 @@ from typing import Literal as L
 import numpy as np
 from numpy.typing import ArrayLike
 from PIL import Image
-from s2doc.table import TableTuple
 from shapely import box
+
 
 from .base import DocObj
 from .element import Element
 from .errors import (
-    AreaNotFoundError,
     DocumentError,
+    ElementNotFoundError,
     ExistenceError,
     LoadFromDictError,
     PageNotFoundError,
@@ -29,6 +29,7 @@ from .references import ReferenceGraph
 from .revision import Revision
 from .semantics import Literal, SemanticEntity, SemanticKnowledgeGraph, SemanticType
 from .space import Space
+from .table import TableTuple
 from .util import base64_to_img, img_to_base64
 
 logging.getLogger("PIL.PngImagePlugin").setLevel(logging.CRITICAL + 1)
@@ -47,7 +48,7 @@ class Document(DocObj):
         semantic_references: ReferenceGraph | None = None,
         metadata: dict[str, Any] | None = None,
         raw_data: bytes | None = None,
-        semantic_tuples: list[TableTuple] | None = None
+        semantic_tuples: list[TableTuple] | None = None,
     ):
         self.oid: str = oid
         self.pages: NormalizedObj[Page] = pages or NormalizedObj[Page]()
@@ -294,7 +295,7 @@ class Document(DocObj):
         if isinstance(element_id_or_obj, str):
             element = self.elements.get(element_id_or_obj)
             if not element:
-                raise AreaNotFoundError(f"Element '{element_id_or_obj}' not found")
+                raise ElementNotFoundError(f"Element '{element_id_or_obj}' not found")
             return element
         return element_id_or_obj
 
@@ -511,7 +512,7 @@ class Document(DocObj):
         """Get a element's data value or fall back to descendants."""
         element = self._element_id_to_object(element)
         if not element:
-            raise AreaNotFoundError(f"Element '{element}' not found")
+            raise ElementNotFoundError(f"Element '{element}' not found")
 
         g = element.data.get(val, None)
         if not g:
@@ -683,7 +684,7 @@ class Document(DocObj):
     ) -> str | Image.Image:
         element = self._element_id_to_object(element_id)
         if not element:
-            raise AreaNotFoundError(f"Element {element_id} does not exist")
+            raise ElementNotFoundError(f"Element {element_id} does not exist")
         p = self.find_page_of_element(element, False)
         return self.get_img_snippet_from_bb(element.region, p, as_string, padding)
 
@@ -798,7 +799,7 @@ class Document(DocObj):
                     [TableTuple.from_dict(x) for x in d.get("semantic_tuples", [])]
                     if d.get("semantic_tuples")
                     else []
-                )
+                ),
             )
         except Exception as e:
             raise LoadFromDictError(cls.__name__, str(e))
