@@ -33,6 +33,7 @@ from .util import base64_to_img, img_to_base64
 
 logging.getLogger("PIL.PngImagePlugin").setLevel(logging.CRITICAL + 1)
 
+_logger = logging.getLogger(__name__)
 
 class Document(DocObj):
     def __init__(
@@ -90,13 +91,17 @@ class Document(DocObj):
 
     def _generate_element_id(self, variant: str) -> Callable[..., str]:
         """Generate a function that creates element IDs based on the specified variant."""
+        from . import config
+
         # Create a UUID generator with a small cache for better performance
         uuid_cache = []
 
         def get_uuid():
             if not uuid_cache:
-                # Pre-generate a small batch of UUIDs for better performance
-                uuid_cache.extend(str(uuid.uuid4())[:8] for _ in range(5))
+                # Pre-generate a batch of UUIDs for better performance
+                uuid_cache.extend(
+                    str(uuid.uuid4())[:8] for _ in range(config.UUID_BATCH_SIZE)
+                )
             return uuid_cache.pop()
 
         def generate_long_id(page, category):
@@ -113,8 +118,10 @@ class Document(DocObj):
         }
 
         if variant not in variants:
+            _logger.error(f"Unknown id generation variant: {variant}")
             raise ValueError(f"Unknown id generation variant: {variant}")
 
+        _logger.debug(f"ID generation initialized with variant: {variant}")
         return variants[variant]
 
     def add_element(
@@ -159,9 +166,13 @@ class Document(DocObj):
                 of Region.
         """
         if not category:
+            _logger.error("Category must be provided when adding element")
             raise DocumentError("Category must be provided.")
         if not isinstance(region, Region):
+            _logger.error(f"Invalid region type: {type(region)}")
             raise DocumentError("region must be an instance of Region.")
+
+        _logger.debug(f"Adding element to page '{page}' with category '{category}'")
 
         if isinstance(page, str):
             page_obj: Page | None = self.pages.get(key=page)
@@ -210,6 +221,8 @@ class Document(DocObj):
         self.elements.add(ar)
         # self.references.add_reference(page, element_id)
         self.revisions[-1].objects.add(element_id)
+
+        _logger.info(f"Added element {element_id} (category={category})")
 
         if referenced_by:
             if isinstance(referenced_by, str):
@@ -380,7 +393,12 @@ class Document(DocObj):
         source = self._element_id_to_object(element_id)
         page = self.find_page_of_element(source, False)
         if not page:
+            _logger.error(f"Element '{element_id}' not found on any page")
             raise ValueError(f"Element '{element_id}' not found on any page.")
+
+        _logger.debug(
+            f"Finding visible elements from '{element_id}' in direction '{direction}'"
+        )
 
         bbox = source.region
         space = page.spaces[bbox.space]
@@ -473,7 +491,11 @@ class Document(DocObj):
                     return False
             return True
 
-        return [el for el in candidates if is_visible(el) and el != source]
+        result = [el for el in candidates if is_visible(el) and el != source]
+        _logger.info(
+            f"Found {len(result)} visible elements from '{element_id}' direction='{direction}'"
+        )
+        return result
 
         # x_shift, y_shift = 0, 0
 
@@ -796,17 +818,20 @@ class Document(DocObj):
         Raises:
             LoadFromDictError: If the input is invalid or missing required fields
         """
+        _logger.debug("Deserializing document from dictionary")
+
         if (
             not isinstance(d, dict)
             or not d.get("oid")
             or "pages" not in d
             or "elements" not in d
         ):
+            _logger.error("Invalid document dictionary format")
             raise LoadFromDictError(cls.__name__, f"Invalid input: {d}")
 
         # Check if this is a compressed format (has id_map)
         try:
-            return cls(
+            doc = cls(
                 oid=d["oid"],
                 pages=NormalizedObj.from_dict(d["pages"], "pages"),
                 elements=NormalizedObj.from_dict(d["elements"], "elements"),
@@ -837,7 +862,12 @@ class Document(DocObj):
                     else []
                 ),
             )
+            _logger.info(
+                f"Deserialized document '{doc.oid}' with {len(doc.elements)} elements"
+            )
+            return doc
         except Exception as e:
+            _logger.exception("Failed to deserialize document from dictionary")
             raise LoadFromDictError(cls.__name__, str(e))
 
     @classmethod
@@ -1064,6 +1094,7 @@ class Document(DocObj):
         Returns:
             str: JSON representation of the document
         """
+        _logger.debug(f"Serializing document to JSON (compress_ids={compress_ids})")
 
         # Custom encoder to properly handle numpy types, dates, and other special objects
         class NpEncoder(json.JSONEncoder):
