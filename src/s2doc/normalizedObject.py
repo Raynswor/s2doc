@@ -1,10 +1,10 @@
 from collections.abc import ItemsView, Iterator, ValuesView
 from typing import Generic, TypeVar
 
-from .element import Element
-from .errors import ExistenceError, LoadFromDictError
-from .page import Page
-from .util import build_compressed_trie, flatten_compressed_trie
+from s2doc.element import Element
+from s2doc.errors import ElementNotFoundError, LoadFromDictError
+from s2doc.page import Page
+from s2doc.util import build_compressed_trie, flatten_compressed_trie
 
 T = TypeVar("T", Page, Element)
 
@@ -43,7 +43,7 @@ class NormalizedObj(Generic[T]):
         else:
             ret = self.byId.get(key)
         if ret is None:
-            raise ExistenceError(f"Key {key} not found in NormalizedObj")
+            raise ElementNotFoundError(f"Key {key} not found in NormalizedObj")
         return ret
 
     def __setitem__(self, key: str, value: T) -> None:

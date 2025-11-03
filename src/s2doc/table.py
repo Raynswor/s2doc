@@ -2,6 +2,8 @@ import html
 from collections.abc import Generator, Iterable
 from typing import Any
 
+from s2doc.errors import ElementNotFoundError
+
 from .element import Element
 from .geometry import Region
 
@@ -681,67 +683,91 @@ class Table(Element):
         H = len(self.cells)
         W = len(self.cells[0]) if H > 0 else 0
 
-        def push_run(lst, cid):
-            if not lst or lst[-1] != cid:
+        # Track which cells we've already seen (to handle merged cells)
+        seen_cells: set[str] = set()
+
+        def get_cell_id(cell_ref) -> str | None:
+            """Extract cell ID from various cell reference formats"""
+            if cell_ref is None:
+                return None
+            if isinstance(cell_ref, str):
+                return cell_ref
+            if isinstance(cell_ref, dict):
+                return cell_ref.get("oid")
+            if hasattr(cell_ref, "oid"):
+                return cell_ref.oid
+            return None
+
+        def push_unique(lst: list[str], cid: str | None):
+            """Add cell ID to list only if it's not already at the end (for run-length encoding)"""
+            if cid and (not lst or lst[-1] != cid):
                 lst.append(cid)
 
-        def dedup_concat(*lists):
-            out, seen = [], set()
-            for lst in lists:
-                for cid in lst or ():
-                    if cid not in seen:
-                        seen.add(cid)
-                        out.append(cid)
-            return out
-
-        col_headers = [[] for _ in range(W)]
-        col_meta = [[] for _ in range(W)]
-        col_meta_seen = [set() for _ in range(W)]
-        last_row_hdr = [None for _ in range(W)]
+        # Track headers for each column
+        col_headers: list[list[str]] = [[] for _ in range(W)]
+        # Track the last row header seen in each column (for projection)
+        last_row_hdr: list[str | None] = [None for _ in range(W)]
 
         tuples: list[TableTuple] = []
 
         for i in range(H):
-            left = []
-            row_meta = []
-            row_meta_seen = set()
+            # Track headers in current row
+            row_headers = []
 
             for j in range(W):
+                # Get the cell reference
+                cell_ref = self.cells[i][j]
+                cell_id = get_cell_id(cell_ref)
+
+                if not cell_id:
+                    continue
+
+                # Get the actual cell object
                 try:
-                    c: Element = self.cells[i][j]
-                except IndexError:
-                    continue
-                if c is None or isinstance(c, str):
+                    cell_obj: Element = doc.get_element_obj(cell_id)
+                except (IndexError, KeyError, AttributeError, ElementNotFoundError):
                     continue
 
-                if c["data"].get("row_label"):
-                    push_run(left, c["oid"])
-                    for k in col_headers[j]:
-                        if k not in row_meta_seen:
-                            row_meta_seen.add(k)
-                            row_meta.append(k)
-                    last_row_hdr[j] = c["oid"]
+                if cell_obj is None:
+                    continue
 
-                if c["data"].get("column_label"):
-                    push_run(col_headers[j], c["oid"])
-                    for k in left:
-                        if k not in col_meta_seen[j]:
-                            col_meta_seen[j].add(k)
-                            col_meta[j].append(k)
+                # Skip if we've already processed this cell (handles merged cells)
+                is_row_label = cell_obj.data.get("row_label", False)
+                is_col_label = cell_obj.data.get("column_label", False)
+                is_data_cell = not is_row_label and not is_col_label
 
-                if not c["data"].get("row_label") and not c["data"].get("column_label"):
-                    proj = [last_row_hdr[j]] if last_row_hdr[j] else []
-                    rh = dedup_concat(left, proj, row_meta)
-                    ch = dedup_concat(col_headers[j], col_meta[j])
-                    tuples.append(
-                        TableTuple(
-                            rh,
-                            ch,
-                            c["oid"],
-                            origin=self.oid,
-                            confidence=float(self.confidence or 0.0),
+                # Process row labels
+                if is_row_label:
+                    push_unique(row_headers, cell_id)
+                    last_row_hdr[j] = cell_id
+
+                # Process column labels
+                if is_col_label:
+                    push_unique(col_headers[j], cell_id)
+
+                # Process data cells
+                if is_data_cell and cell_id not in seen_cells:
+                    seen_cells.add(cell_id)
+
+                    # Collect row headers: current row headers + projected header for this column
+                    rh = list(row_headers)
+                    if last_row_hdr[j] and last_row_hdr[j] not in rh:
+                        rh.append(last_row_hdr[j])
+
+                    # Column headers for this data cell
+                    ch = list(col_headers[j])
+
+                    # Create tuple only if we have content or headers
+                    if rh or ch or cell_obj.data.get("content"):
+                        tuples.append(
+                            TableTuple(
+                                rh,
+                                ch,
+                                cell_id,
+                                origin=self.oid,
+                                confidence=float(self.confidence or 0.0),
+                            )
                         )
-                    )
 
         self.semantic_model = tuples
         self.data["semantic_model"] = self.semantic_model
