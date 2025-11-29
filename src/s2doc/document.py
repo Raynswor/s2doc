@@ -615,7 +615,7 @@ class Document(DocObj):
             Iterable[Element]: Generator of matching elements
         """
         if isinstance(category, list):
-            lowers = [cat.lower() for cat in category]
+            lowers = set([cat.lower() for cat in category])
             return self.get_element_by(lambda x: x.category.lower() in lowers, page)
         return self.get_element_by(
             lambda x: x.category.lower() == category.lower(), page

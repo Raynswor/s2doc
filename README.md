@@ -4,6 +4,10 @@
 
 S2Doc originated as an internal data format developed for a table extraction pipeline, where existing document representations proved insufficient for capturing both the spatial layout and semantic structure required for robust processing. Recognizing the lack of a standard format for this class of tasks, S2Doc was generalized to serve as a unified, extensible framework for spatial-semantic document representation, aiming to fill this gap.
 
+For more details, see the [arXiv paper](https://arxiv.org/abs/2511.01113).
+
+[KIETA](https://github.com/Raynswor/kieta) is a framework built on top of S2Doc for document understanding pipelines with a focus on tables. It provides ready-to-use components for converting PDFs and images into the S2Doc format, serveral processing modules for table detection and structure recognition, and general analysis tasks as well as several exporters.
+
 ## Features
 
 - Standardized document model (pages, elements, regions, semantics)
@@ -72,6 +76,19 @@ Contributions are welcome. Please:
 2. Run tests and linters locally (see Quickstart)
 3. Open a pull request with a short description and tests for behavior changes
 
-License & citation
+
+Reference
 ------------------
-TBD — add license and citation instructions here.
+If you use S2Doc in your research, please cite the following paper:
+
+```
+@misc{kempf2025s2docspatialsemanticdocument,
+      title={S2Doc -- Spatial-Semantic Document Format}, 
+      author={Sebastian Kempf and Frank Puppe},
+      year={2025},
+      eprint={2511.01113},
+      archivePrefix={arXiv},
+      primaryClass={cs.DL},
+      url={https://arxiv.org/abs/2511.01113}, 
+}
+```
